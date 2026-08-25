@@ -4,15 +4,22 @@ import { useNavigate } from 'react-router-dom';
 export default function Profile() {
   const navigate = useNavigate();
 
-  // LocalStorage se profile data load karein ya default use karein
+  // LocalStorage se profile data load karein ya active session use karein
   const [profile, setProfile] = useState(() => {
-    const saved = localStorage.getItem('workspace_profile');
-    if (saved) {
-      try { return JSON.parse(saved); } catch (e) {}
+    const activeUser = localStorage.getItem('userInfo') || localStorage.getItem('user') || localStorage.getItem('workspace_profile');
+    if (activeUser) {
+      try { 
+        const parsed = JSON.parse(activeUser);
+        return {
+          name: parsed.name || 'User',
+          email: parsed.email || 'user@example.com',
+          role: parsed.role || 'Web Developer'
+        };
+      } catch (e) {}
     }
     return {
-      name: 'Tehreem',
-      email: 'tehreem@example.com',
+      name: 'User',
+      email: 'user@example.com',
       role: 'Web Developer'
     };
   });
@@ -33,7 +40,11 @@ export default function Profile() {
     e.preventDefault();
     const updated = { name, email, role };
     setProfile(updated);
+    
+    // Dono storage keys update karein taake meeting room aur profile sync rahein
     localStorage.setItem('workspace_profile', JSON.stringify(updated));
+    localStorage.setItem('userInfo', JSON.stringify(updated));
+
     setIsEditing(false);
     setSuccessMsg('Profile updated successfully!');
     setTimeout(() => setSuccessMsg(''), 3000);
@@ -50,7 +61,6 @@ export default function Profile() {
       return;
     }
     
-    // Save success simulation
     setIsPasswordModalOpen(false);
     setCurrentPassword('');
     setNewPassword('');
@@ -87,7 +97,7 @@ export default function Profile() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '20px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
             <div style={{ width: '75px', height: '75px', background: 'linear-gradient(135deg, #ff6600 0%, #cc5200 100%)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2rem', fontWeight: 'bold', color: '#000', boxShadow: '0 4px 15px rgba(255, 102, 0, 0.3)' }}>
-              {profile.name.charAt(0)}
+              {profile.name ? profile.name.charAt(0) : 'U'}
             </div>
             <div>
               <h1 style={{ margin: '0 0 6px 0', fontSize: '1.8rem', fontWeight: '700', color: '#fff' }}>{profile.name}</h1>

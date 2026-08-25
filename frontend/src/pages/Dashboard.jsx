@@ -1,9 +1,26 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
 export default function Dashboard() {
   const navigate = useNavigate();
   
+  // Logged-in user ka naam localStorage se load karein
+  const [userName, setUserName] = useState('Tehreem');
+
+  useEffect(() => {
+    const savedUser = localStorage.getItem('workspace_profile') || localStorage.getItem('userInfo');
+    if (savedUser) {
+      try {
+        const parsed = JSON.parse(savedUser);
+        if (parsed.name) {
+          setUserName(parsed.name);
+        }
+      } catch (e) {
+        console.error("Error parsing user info", e);
+      }
+    }
+  }, []);
+
   // LocalStorage se projects load karein
   const [projects, setProjects] = useState(() => {
     const savedProjects = localStorage.getItem('workspace_projects');
@@ -64,7 +81,7 @@ export default function Dashboard() {
   const handleSendMessage = (e) => {
     e.preventDefault();
     if (!newMessage.trim()) return;
-    setChannelMessages([...channelMessages, { sender: 'Tehreem (You)', text: newMessage, time: 'Just now' }]);
+    setChannelMessages([...channelMessages, { sender: `${userName} (You)`, text: newMessage, time: 'Just now' }]);
     setNewMessage('');
   };
 
@@ -93,7 +110,7 @@ export default function Dashboard() {
       {/* Welcome Banner */}
       <div style={{ background: 'linear-gradient(135deg, #141414 0%, #1a1a1a 100%)', border: '1px solid #262626', padding: '30px 35px', borderRadius: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px', boxShadow: '0 10px 30px rgba(0,0,0,0.5)' }}>
         <div>
-          <h1 style={{ margin: '0 0 8px 0', fontSize: '2rem', fontWeight: '700' }}>Welcome Back, Tehreem! 👋</h1>
+          <h1 style={{ margin: '0 0 8px 0', fontSize: '2rem', fontWeight: '700' }}>Welcome Back, {userName}! 👋</h1>
           <p style={{ margin: 0, color: '#9ca3af', fontSize: '0.95rem' }}>Here is your comprehensive workspace overview and active projects control center.</p>
         </div>
         <button 
@@ -107,7 +124,7 @@ export default function Dashboard() {
       {/* Quick Action Cards Grid */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px', marginBottom: '40px' }}>
         
-        {/* 1. Active Meetings Card (Passes state to open Video Tab) */}
+        {/* 1. Active Meetings Card */}
         <div 
           onClick={() => navigate('/meeting', { state: { defaultTab: 'video' } })}
           style={{ background: '#141414', border: '1px solid #262626', padding: '24px', borderRadius: '14px', cursor: 'pointer', transition: 'all 0.2s ease', position: 'relative', overflow: 'hidden', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}
@@ -124,7 +141,7 @@ export default function Dashboard() {
           <span style={{ color: '#ff6600', fontWeight: '700', fontSize: '0.85rem' }}>Click to enter room &rarr;</span>
         </div>
 
-        {/* 2. Whiteboard Workspace Card (Passes state to open Whiteboard Tab) */}
+        {/* 2. Whiteboard Workspace Card */}
         <div 
           onClick={() => navigate('/meeting', { state: { defaultTab: 'whiteboard' } })}
           style={{ background: '#141414', border: '1px solid #262626', padding: '24px', borderRadius: '14px', cursor: 'pointer', transition: 'all 0.2s ease', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}

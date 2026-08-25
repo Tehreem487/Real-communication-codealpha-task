@@ -11,12 +11,19 @@ export default function Register() {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    console.log('Registering:', name, email, password);
+
+    const userData = {
+      name: name,
+      email: email,
+      role: 'Web Developer'
+    };
+
+    // LocalStorage mein save karein taake Profile page par user ka data show ho
+    localStorage.setItem('workspace_profile', JSON.stringify(userData));
+    localStorage.setItem('userInfo', JSON.stringify(userData));
     
-    // Success message show karein
     setSuccessMessage('Account Created Successfully! Redirecting to login...');
     
-    // 1.5 second baad login page par redirect kar dein
     setTimeout(() => {
       navigate('/login');
     }, 1500);
@@ -42,7 +49,7 @@ export default function Register() {
             <input 
               type="text" 
               className="custom-input" 
-              placeholder="Tehreem" 
+              placeholder="Tehreem Khan" 
               value={name}
               onChange={(e) => setName(e.target.value)}
               required 

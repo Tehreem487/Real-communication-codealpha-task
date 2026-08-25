@@ -1,10 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
+import { io } from 'socket.io-client';
+import Peer from 'peerjs';
 import VideoGrid from '../components/meeting/VideoGrid';
 import MeetingControls from '../components/meeting/MeetingControls';
 import ChatPanel from '../components/chat/ChatPanel';
 import Whiteboard from '../components/whiteboard/Whiteboard';
 import { ScreenShare } from '../components/screenShare/ScreenShare';
+
+// Apne backend server ka URL yahan dein (e.g. http://localhost:5000)
+const SOCKET_SERVER_URL = "http://localhost:5000";
 
 export default function MeetingRoom() {
   const location = useLocation();
@@ -20,9 +25,119 @@ export default function MeetingRoom() {
     return savedVideoState ? JSON.parse(savedVideoState) : false;
   });
 
+  // WebRTC & Socket States
+  const [stream, setStream] = useState(null);
+  const [peers, setPeers] = useState({});
+  const myVideoRef = useRef(null);
+  const socketRef = useRef(null);
+  const peerInstance = useRef(null);
+  const roomId = "dev-session"; // Room identifier
+
   useEffect(() => {
     localStorage.setItem('rtc_is_video_off', JSON.stringify(isVideoOff));
   }, [isVideoOff]);
+
+  // Real-time WebRTC & Socket.io Connection Setup
+  useEffect(() => {
+    // 1. Connect to Socket.io signaling server
+    socketRef.current = io(SOCKET_SERVER_URL);
+
+    // 2. Initialize PeerJS
+    const peer = new Peer();
+    peerInstance.current = peer;
+
+    peer.on('open', (id) => {
+      // Get user local media stream
+      navigator.mediaDevices.getUserMedia({
+        video: true,
+        audio: true
+      }).then((userStream) => {
+        setStream(userStream);
+        if (myVideoRef.current) {
+          myVideoRef.current.srcObject = userStream;
+        }
+
+        // Join room via socket signaling
+        socketRef.current.emit('join-room', roomId, id);
+
+        // When a new user connects to the room
+        socketRef.current.on('user-connected', (userId) => {
+          connectToNewUser(userId, userStream, peer);
+        });
+      }).catch(err => {
+        console.error("Error accessing media devices:", err);
+      });
+    });
+
+    // Handle incoming calls from other peers
+    peer.on('call', (call) => {
+      navigator.mediaDevices.getUserMedia({
+        video: true,
+        audio: true
+      }).then((userStream) => {
+        setStream(userStream);
+        if (myVideoRef.current) {
+          myVideoRef.current.srcObject = userStream;
+        }
+        call.answer(userStream);
+        
+        call.on('stream', (remoteStream) => {
+          addRemoteVideo(call.peer, remoteStream);
+        });
+      });
+    });
+
+    socketRef.current.on('user-disconnected', (userId) => {
+      if (peers[userId]) peers[userId].close();
+      removeRemoteVideo(userId);
+    });
+
+    return () => {
+      if (socketRef.current) socketRef.current.disconnect();
+      if (peerInstance.current) peerInstance.current.destroy();
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, []);
+
+  const connectToNewUser = (userId, localStream, peer) => {
+    const call = peer.call(userId, localStream);
+    call.on('stream', (remoteStream) => {
+      addRemoteVideo(userId, remoteStream);
+    });
+    call.on('close', () => {
+      removeRemoteVideo(userId);
+    });
+    setPeers(prev => ({ ...prev, [userId]: call }));
+  };
+
+  const addRemoteVideo = (userId, remoteStream) => {
+    let videoGrid = document.getElementById("remote-videos-container");
+    if (!videoGrid) return;
+
+    let existingVideo = document.getElementById(`video-${userId}`);
+    if (!existingVideo) {
+      const videoElement = document.createElement("video");
+      videoElement.srcObject = remoteStream;
+      videoElement.id = `video-${userId}`;
+      videoElement.autoplay = true;
+      videoElement.playsInline = true;
+      videoElement.style.width = "200px";
+      videoElement.style.height = "150px";
+      videoElement.style.objectFit = "cover";
+      videoElement.style.borderRadius = "8px";
+      videoElement.style.border = "2px solid #ff6600";
+      videoGrid.appendChild(videoElement);
+    }
+  };
+
+  const removeRemoteVideo = (userId) => {
+    let videoElement = document.getElementById(`video-${userId}`);
+    if (videoElement) {
+      videoElement.remove();
+    }
+  };
 
   return (
     <div style={{ height: '100dvh', width: '100vw', background: '#0a0a0a', display: 'flex', flexDirection: 'column', fontFamily: 'system-ui, sans-serif', overflow: 'hidden', boxSizing: 'border-box', position: 'fixed', top: 0, left: 0 }}>
@@ -36,7 +151,7 @@ export default function MeetingRoom() {
           <span style={{ color: '#fff', fontWeight: '700', fontSize: '0.75rem', whiteSpace: 'nowrap' }}>#dev-session</span>
         </div>
         
-        {/* Navigation Tabs (Single Line, No Wrap) */}
+        {/* Navigation Tabs */}
         <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
           <button 
             onClick={() => setActiveTab('video')}
@@ -72,13 +187,19 @@ export default function MeetingRoom() {
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#0a0a0a', position: 'relative', width: '100%' }}>
           
           <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', padding: '6px' }}>
-            {activeTab === 'video' && <VideoGrid isVideoOff={isVideoOff} isMuted={isMuted} />}
-            {activeTab === 'whiteboard' && <Whiteboard />}
+            {activeTab === 'video' && (
+              <>
+                <VideoGrid isVideoOff={isVideoOff} isMuted={isMuted} myVideoRef={myVideoRef} />
+                {/* Remote Participants Grid container */}
+                <div id="remote-videos-container" style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginTop: '10px' }}></div>
+              </>
+            )}
+            {activeTab === 'whiteboard' && <Whiteboard socket={socketRef.current} roomId={roomId} />}
             {activeTab === 'screenshare' && <ScreenShare />}
           </div>
 
           <div style={{ flexShrink: 0, background: '#121212', borderTop: '1px solid #222', zIndex: 5 }}>
-            <MeetingControls isMuted={isMuted} setIsMuted={setIsMuted} isVideoOff={isVideoOff} setIsVideoOff={setIsVideoOff} />
+            <MeetingControls isMuted={isMuted} setIsMuted={setIsMuted} isVideoOff={isVideoOff} setIsVideoOff={setIsVideoOff} stream={stream} />
           </div>
 
         </div>
@@ -106,7 +227,7 @@ export default function MeetingRoom() {
               ✕ Close
             </button>
           </div>
-          <ChatPanel />
+          <ChatPanel socket={socketRef.current} roomId={roomId} />
         </div>
 
       </div>

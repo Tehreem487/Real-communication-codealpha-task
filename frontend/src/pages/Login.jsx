@@ -10,12 +10,23 @@ export default function Login() {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    console.log('Logging in with:', email, password);
     
-    // Success message show karein
+    // Email ke hisaab se naam nikal lein ya default set karein
+    const username = email.split('@')[0];
+    const formattedName = username.charAt(0).toUpperCase() + username.slice(1);
+
+    const userData = {
+      name: formattedName,
+      email: email,
+      role: 'Web Developer'
+    };
+
+    // LocalStorage mein save karein taake Profile page par reflect ho
+    localStorage.setItem('workspace_profile', JSON.stringify(userData));
+    localStorage.setItem('userInfo', JSON.stringify(userData));
+
     setSuccessMessage('Login Successful! Redirecting...');
     
-    // 1.5 second baad dashboard par redirect kar dein
     setTimeout(() => {
       navigate('/dashboard');
     }, 1500);
