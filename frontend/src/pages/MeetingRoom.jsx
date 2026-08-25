@@ -37,6 +37,29 @@ export default function MeetingRoom() {
     localStorage.setItem('rtc_is_video_off', JSON.stringify(isVideoOff));
   }, [isVideoOff]);
 
+  // Handle Camera Hardware Stream & Light based on isVideoOff state
+  useEffect(() => {
+    if (isVideoOff) {
+      // Stop video tracks so the physical camera light turns off immediately
+      if (stream) {
+        stream.getVideoTracks().forEach(track => track.stop());
+      }
+    } else {
+      // Re-request media stream when video is turned back on
+      navigator.mediaDevices.getUserMedia({
+        video: true,
+        audio: true
+      }).then((userStream) => {
+        setStream(userStream);
+        if (myVideoRef.current) {
+          myVideoRef.current.srcObject = userStream;
+        }
+      }).catch(err => {
+        console.error("Error accessing media devices:", err);
+      });
+    }
+  }, [isVideoOff]);
+
   // Real-time WebRTC & Socket.io Connection Setup
   useEffect(() => {
     // 1. Connect to Socket.io signaling server
@@ -47,32 +70,38 @@ export default function MeetingRoom() {
     peerInstance.current = peer;
 
     peer.on('open', (id) => {
-      // Get user local media stream
-      navigator.mediaDevices.getUserMedia({
-        video: true,
-        audio: true
-      }).then((userStream) => {
-        setStream(userStream);
-        if (myVideoRef.current) {
-          myVideoRef.current.srcObject = userStream;
-        }
+      if (!isVideoOff) {
+        navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: true
+        }).then((userStream) => {
+          setStream(userStream);
+          if (myVideoRef.current) {
+            myVideoRef.current.srcObject = userStream;
+          }
 
-        // Join room via socket signaling
-        socketRef.current.emit('join-room', roomId, id);
+          socketRef.current.emit('join-room', roomId, id);
 
-        // When a new user connects to the room
-        socketRef.current.on('user-connected', (userId) => {
-          connectToNewUser(userId, userStream, peer);
+          socketRef.current.on('user-connected', (userId) => {
+            connectToNewUser(userId, userStream, peer);
+          });
+        }).catch(err => {
+          console.error("Error accessing media devices:", err);
         });
-      }).catch(err => {
-        console.error("Error accessing media devices:", err);
-      });
+      } else {
+        socketRef.current.emit('join-room', roomId, id);
+        socketRef.current.on('user-connected', (userId) => {
+          if (stream) {
+            connectToNewUser(userId, stream, peer);
+          }
+        });
+      }
     });
 
     // Handle incoming calls from other peers
     peer.on('call', (call) => {
       navigator.mediaDevices.getUserMedia({
-        video: true,
+        video: !isVideoOff,
         audio: true
       }).then((userStream) => {
         setStream(userStream);

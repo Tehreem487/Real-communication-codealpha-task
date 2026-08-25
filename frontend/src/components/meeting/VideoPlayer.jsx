@@ -21,17 +21,18 @@ export default function VideoPlayer({ name, isLocal, isVideoOff, isMuted }) {
           setHasStream(false);
         });
     } else {
+      // Agar video off hai ya local nahi hai, toh purana stream track completely stop kar do
       if (videoRef.current && videoRef.current.srcObject) {
         const tracks = videoRef.current.srcObject.getTracks();
         tracks.forEach(track => track.stop());
         videoRef.current.srcObject = null;
-        setHasStream(false);
       }
+      setHasStream(false);
     }
 
     return () => {
       if (currentStream) {
-        currentStream.getTracks().themes?.forEach(t => t.stop());
+        currentStream.getTracks().forEach(t => t.stop());
       }
     };
   }, [isLocal, isVideoOff]);
@@ -45,7 +46,7 @@ export default function VideoPlayer({ name, isLocal, isVideoOff, isMuted }) {
           ref={videoRef} 
           autoPlay 
           playsInline 
-          muted={true} /* Mobile autoplay policy ke liye local video hamesha muted honi chahiye */
+          muted={true} 
           style={{ 
             width: '100%', 
             height: '100%', 
