@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import { io } from 'socket.io-client';
 import Peer from 'peerjs';
@@ -199,7 +199,15 @@ export default function MeetingRoom() {
           </div>
 
           <div style={{ flexShrink: 0, background: '#121212', borderTop: '1px solid #222', zIndex: 5 }}>
-            <MeetingControls isMuted={isMuted} setIsMuted={setIsMuted} isVideoOff={isVideoOff} setIsVideoOff={setIsVideoOff} stream={stream} />
+            <MeetingControls 
+              isMuted={isMuted} 
+              setIsMuted={setIsMuted} 
+              isVideoOff={isVideoOff} 
+              setIsVideoOff={setIsVideoOff} 
+              stream={stream} 
+              setStream={setStream} 
+              myVideoRef={myVideoRef} 
+            />
           </div>
 
         </div>
