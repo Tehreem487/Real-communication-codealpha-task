@@ -1,0 +1,17 @@
+:root {
+  --bg-primary: #0f0f0f;
+  --bg-secondary: #181818;
+  --bg-surface: #222222;
+  --border-color: #2a2a2a;
+  --border-orange: #ff6600;
+  --orange-primary: #ff6600;
+  --orange-hover: #e65c00;
+  --text-main: #ffffff;
+  --text-muted: #a0a0a0;
+  --danger: #ff3333;
+  --success: #00cc66;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 20px;
+  --transition: all 0.2s ease;
+}

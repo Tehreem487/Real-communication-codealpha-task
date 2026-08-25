@@ -1,0 +1,51 @@
+.meetings-container {
+  padding: 40px;
+  max-width: 1200px;
+  margin: 0 auto;
+  color: var(--text-main);
+}
+
+.meetings-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 30px;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 20px;
+}
+
+.video-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+  height: 100%;
+  padding: 20px;
+  background: var(--bg-primary);
+}
+
+.video-card {
+  position: relative;
+  background: #151515;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  overflow: hidden;
+  aspect-ratio: 16 / 9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.meeting-toolbar {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 12px;
+  background: rgba(24, 24, 24, 0.9);
+  padding: 12px 24px;
+  border-radius: 40px;
+  border: 1px solid var(--border-color);
+  backdrop-filter: blur(10px);
+  z-index: 10;
+}
