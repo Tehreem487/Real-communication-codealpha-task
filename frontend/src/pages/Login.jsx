@@ -6,29 +6,35 @@ export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
-  const navigate = useNavigate();
+  const [errorMessage, setErrorMessage] = useState('');
+  const useNavigateInstance = useNavigate();
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    setErrorMessage('');
+    setSuccessMessage('');
+
+    // Fetch registered users from localStorage
+    const existingUsers = JSON.parse(localStorage.getItem('registeredUsers')) || [];
     
-    // Email ke hisaab se naam nikal lein ya default set karein
-    const username = email.split('@')[0];
-    const formattedName = username.charAt(0).toUpperCase() + username.slice(1);
+    // Find matching user
+    const matchedUser = existingUsers.find(
+      user => user.email === email && user.password === password
+    );
 
-    const userData = {
-      name: formattedName,
-      email: email,
-      role: 'Web Developer'
-    };
+    if (!matchedUser) {
+      setErrorMessage('Invalid email or password, or account does not exist! Please register first.');
+      return;
+    }
 
-    // LocalStorage mein save karein taake Profile page par reflect ho
-    localStorage.setItem('workspace_profile', JSON.stringify(userData));
-    localStorage.setItem('userInfo', JSON.stringify(userData));
+    // Save current active session data
+    localStorage.setItem('workspace_profile', JSON.stringify(matchedUser));
+    localStorage.setItem('userInfo', JSON.stringify(matchedUser));
 
     setSuccessMessage('Login Successful! Redirecting...');
     
     setTimeout(() => {
-      navigate('/dashboard');
+      useNavigateInstance('/dashboard');
     }, 1500);
   };
 
@@ -43,6 +49,12 @@ export default function Login() {
         {successMessage && (
           <div style={{ background: '#10b981', color: '#000', padding: '10px', borderRadius: '6px', marginBottom: '20px', textAlign: 'center', fontWeight: '600' }}>
             {successMessage}
+          </div>
+        )}
+
+        {errorMessage && (
+          <div style={{ background: '#ef4444', color: '#fff', padding: '10px', borderRadius: '6px', marginBottom: '20px', textAlign: 'center', fontWeight: '600' }}>
+            {errorMessage}
           </div>
         )}
 

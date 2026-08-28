@@ -7,20 +7,27 @@ export default function Register() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
   const navigate = useNavigate();
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    setErrorMessage('');
 
-    const userData = {
-      name: name,
-      email: email,
-      role: 'Web Developer'
-    };
+    // Check if user already exists
+    const existingUsers = JSON.parse(localStorage.getItem('registeredUsers')) || [];
+    const userExists = existingUsers.find(user => user.email === email);
 
-    // LocalStorage mein save karein taake Profile page par user ka data show ho
-    localStorage.setItem('workspace_profile', JSON.stringify(userData));
-    localStorage.setItem('userInfo', JSON.stringify(userData));
+    if (userExists) {
+      setErrorMessage('Account with this email already exists! Please login.');
+      return;
+    }
+
+    const newUser = { name, email, password, role: 'Web Developer' };
+    
+    // Push new user to array and save
+    existingUsers.push(newUser);
+    localStorage.setItem('registeredUsers', JSON.stringify(existingUsers));
     
     setSuccessMessage('Account Created Successfully! Redirecting to login...');
     
@@ -43,13 +50,19 @@ export default function Register() {
           </div>
         )}
 
+        {errorMessage && (
+          <div style={{ background: '#ef4444', color: '#fff', padding: '10px', borderRadius: '6px', marginBottom: '20px', textAlign: 'center', fontWeight: '600' }}>
+            {errorMessage}
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className="auth-form">
           <div className="input-group">
             <label className="input-label">Full Name</label>
             <input 
               type="text" 
               className="custom-input" 
-              placeholder="Tehreem Khan" 
+              placeholder="Enter your full name" 
               value={name}
               onChange={(e) => setName(e.target.value)}
               required 
