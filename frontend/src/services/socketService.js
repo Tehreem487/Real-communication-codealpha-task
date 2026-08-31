@@ -9,16 +9,28 @@ class SocketService {
   connect() {
     if (!this.socket) {
       this.socket = io(SOCKET_URL, {
+        transports: ['websocket', 'polling'],
         autoConnect: true,
         reconnection: true,
-        reconnectionAttempts: 5,
+        reconnectionAttempts: Infinity,
         reconnectionDelay: 1000,
       });
 
       this.socket.on('connect', () => {
-        console.log(`🔌 Connected to Socket Server: ${this.socket.id}`);
+        console.log(
+          '🟢 Connected to Socket Server:',
+          this.socket.id
+        );
+      });
+
+      this.socket.on('connect_error', (error) => {
+        console.error(
+          '🔴 Socket error:',
+          error.message
+        );
       });
     }
+
     return this.socket;
   }
 
@@ -26,7 +38,6 @@ class SocketService {
     if (this.socket) {
       this.socket.disconnect();
       this.socket = null;
-      console.log('🔌 Disconnected from Socket Server');
     }
   }
 
