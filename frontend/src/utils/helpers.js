@@ -1,14 +1,5 @@
-/**
- * Format timestamp into readable local time
- */
 export const formatTime = (dateString) => {
-  if (!dateString) return '';
-
   const date = new Date(dateString);
-
-  if (Number.isNaN(date.getTime())) {
-    return '';
-  }
 
   return date.toLocaleTimeString([], {
     hour: '2-digit',
@@ -16,11 +7,9 @@ export const formatTime = (dateString) => {
   });
 };
 
-
-/**
- * Generate a random alphanumeric room code
- */
-export const generateRoomCode = (length = 6) => {
+export const generateRoomCode = (
+  length = 6
+) => {
   const chars =
     'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
 
@@ -28,56 +17,34 @@ export const generateRoomCode = (length = 6) => {
 
   for (let i = 0; i < length; i++) {
     result += chars.charAt(
-      Math.floor(Math.random() * chars.length)
+      Math.floor(
+        Math.random() * chars.length
+      )
     );
   }
 
   return result;
 };
 
-
-/**
- * Truncate long strings
- */
 export const truncateText = (
   text,
   maxLength = 20
 ) => {
   if (!text) return '';
 
-  const value = String(text);
-
-  return value.length > maxLength
-    ? `${value.substring(0, maxLength)}...`
-    : value;
+  return text.length > maxLength
+    ? `${text.substring(0, maxLength)}...`
+    : text;
 };
 
-
-/**
- * Generate complete meeting URL
- *
- * Example:
- * https://your-app.vercel.app/room/ABC123
- */
-export const getMeetingUrl = (roomId) => {
-  if (!roomId) return '';
-
-  return `${window.location.origin}/room/${roomId}`;
-};
-
-
-/**
- * Copy meeting link to clipboard
- */
-export const copyMeetingLink = async (roomId) => {
+export const copyMeetingLink = async (
+  roomId
+) => {
   try {
-    const meetingUrl = getMeetingUrl(roomId);
+    const link =
+      `${window.location.origin}/room/${roomId}`;
 
-    if (!meetingUrl) {
-      return false;
-    }
-
-    await navigator.clipboard.writeText(meetingUrl);
+    await navigator.clipboard.writeText(link);
 
     return true;
   } catch (error) {

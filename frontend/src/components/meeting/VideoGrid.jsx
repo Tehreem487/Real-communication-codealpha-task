@@ -2,79 +2,47 @@ import React from 'react';
 import VideoPlayer from './VideoPlayer';
 
 export default function VideoGrid({
-  participants = [],
   peers = [],
+  participants = [],
   isVideoOff = false,
   isMuted = false,
-  stream = null,
   myVideoRef,
 }) {
-  const getUserName = () => {
-    const savedUser =
-      localStorage.getItem('workspace_profile') ||
-      localStorage.getItem('userInfo') ||
-      localStorage.getItem('user');
+  const safePeers = Array.isArray(peers)
+    ? peers
+    : [];
 
-    if (!savedUser) {
-      return 'User';
-    }
-
-    try {
-      const parsed =
-        JSON.parse(savedUser);
-
-      return (
-        parsed?.name ||
-        parsed?.username ||
-        parsed?.fullName ||
-        'User'
-      );
-    } catch {
-      return 'User';
-    }
-  };
-
-  const currentUserName =
-    getUserName();
+  const safeParticipants =
+    Array.isArray(participants)
+      ? participants
+      : [];
 
   return (
     <div
       style={{
+        width: '100%',
+        height: '100%',
+        minHeight: '300px',
         display: 'grid',
         gridTemplateColumns:
           'repeat(auto-fit, minmax(260px, 1fr))',
-        gap: '12px',
-        width: '100%',
-        minHeight: '100%',
-        padding: '10px',
-        boxSizing: 'border-box',
-        alignContent: 'start',
+        gap: '10px',
       }}
     >
-
       {/* LOCAL VIDEO */}
 
       <VideoPlayer
-        name={`${currentUserName} (You)`}
-        isLocal={true}
-        isVideoOff={
-          isVideoOff
-        }
-        isMuted={
-          isMuted
-        }
-        stream={
-          stream
-        }
-        videoRef={
-          myVideoRef
-        }
+        stream={null}
+        videoRef={myVideoRef}
+        muted={true}
+        label="You"
+        isVideoOff={isVideoOff}
+        isMuted={isMuted}
       />
 
+      {/* REMOTE VIDEOS */}
 
-      {/* REMOTE PEERS */}
-
-      {peers.map(
+      {safePeers.map(
         (peer, index) => (
           <VideoPlayer
             key={
@@ -82,41 +50,50 @@ export default function VideoGrid({
               peer?.socketId ||
               index
             }
-            name={
-              peer?.name ||
-              participants[index]?.name ||
-              `Participant ${index + 1}`
-            }
-            isLocal={false}
             stream={
-              peer?.stream
+              peer?.stream || null
             }
+            label={
+              peer?.name ||
+              `Participant ${
+                index + 1
+              }`
+            }
+            muted={false}
           />
         )
       )}
 
+      {/* Empty state */}
 
-      {/* SOCKET PARTICIPANTS
-          Agar WebRTC peer stream available na ho */}
+      {safePeers.length === 0 && (
+        <div
+          style={{
+            position: 'absolute',
+            left: '50%',
+            top: '50%',
+            transform:
+              'translate(-50%, -50%)',
+            color: '#6b7280',
+            textAlign: 'center',
+            pointerEvents: 'none',
+          }}
+        >
+          <div
+            style={{
+              fontSize: '30px',
+              marginBottom: '8px',
+            }}
+          >
+            🎥
+          </div>
 
-      {peers.length === 0 &&
-        participants.map(
-          (participant, index) => (
-            <VideoPlayer
-              key={
-                participant.id ||
-                participant.socketId ||
-                index
-              }
-              name={
-                participant.name ||
-                `Participant ${index + 1}`
-              }
-              isLocal={false}
-            />
-          )
-        )}
-
+          <div>
+            Waiting for other
+            participants...
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,9 +1,5 @@
 import React from 'react';
-import {
-  BrowserRouter,
-  Routes,
-  Route
-} from 'react-router-dom';
+import { Routes, Route } from 'react-router-dom';
 
 import Landing from '../pages/Landing';
 import Login from '../pages/Login';
@@ -13,31 +9,57 @@ import MeetingRoom from '../pages/MeetingRoom';
 import Profile from '../pages/Profile';
 import NotFound from '../pages/NotFound';
 
+import ProtectedRoute from './ProtectedRoute';
+
 export default function AppRoutes() {
   return (
-    <BrowserRouter>
-      <Routes>
+    <Routes>
+      {/* Public Routes */}
+      <Route path="/" element={<Landing />} />
+      <Route path="/login" element={<Login />} />
+      <Route path="/register" element={<Register />} />
 
-        {/* Public */}
-        <Route path="/" element={<Landing />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
+      {/* Protected Routes */}
+      <Route
+        path="/dashboard"
+        element={
+          <ProtectedRoute>
+            <Dashboard />
+          </ProtectedRoute>
+        }
+      />
 
-        {/* Main App */}
-        <Route path="/dashboard" element={<Dashboard />} />
+      <Route
+        path="/profile"
+        element={
+          <ProtectedRoute>
+            <Profile />
+          </ProtectedRoute>
+        }
+      />
 
-        {/* IMPORTANT: Meeting route */}
-        <Route path="/meeting" element={<MeetingRoom />} />
+      {/* Main Meeting Route */}
+      <Route
+        path="/meeting"
+        element={
+          <ProtectedRoute>
+            <MeetingRoom />
+          </ProtectedRoute>
+        }
+      />
 
-        {/* Room with ID */}
-        <Route path="/room/:roomId" element={<MeetingRoom />} />
+      {/* Room with Room ID */}
+      <Route
+        path="/room/:roomId"
+        element={
+          <ProtectedRoute>
+            <MeetingRoom />
+          </ProtectedRoute>
+        }
+      />
 
-        <Route path="/profile" element={<Profile />} />
-
-        {/* 404 */}
-        <Route path="*" element={<NotFound />} />
-
-      </Routes>
-    </BrowserRouter>
+      {/* 404 */}
+      <Route path="*" element={<NotFound />} />
+    </Routes>
   );
 }

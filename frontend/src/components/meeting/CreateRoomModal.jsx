@@ -1,94 +1,141 @@
-import React, { useState } from 'react';
-
-import { Modal } from '../common/Modal';
-import { Input } from '../common/Input';
-import { Button } from '../common/Button';
-
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import {
-  generateRoomCode,
-} from '../../utils/helpers';
-
-export const CreateRoomModal = ({
-  isOpen,
+export default function CreateRoomModal({
   onClose,
-}) => {
-  const [roomName, setRoomName] = useState('');
-
+  defaultTab = 'video',
+}) {
   const navigate = useNavigate();
 
-  const handleCreate = (e) => {
-    e.preventDefault();
+  const generateRoomId = () => {
+    return Math.random()
+      .toString(36)
+      .substring(2, 8)
+      .toUpperCase();
+  };
 
-    const code = generateRoomCode(6);
+  const handleCreateRoom = () => {
+    const roomId =
+      generateRoomId();
 
-    const cleanRoomName =
-      roomName.trim() || 'My Meeting';
-
-    // Save basic room information locally
-    localStorage.setItem(
-      `meeting_${code}`,
-      JSON.stringify({
-        roomId: code,
-        roomName: cleanRoomName,
-        createdAt: new Date().toISOString(),
-      })
+    navigate(
+      `/room/${roomId}`,
+      {
+        state: {
+          roomName:
+            `Team Meeting ${roomId}`,
+          defaultTab,
+          roomId,
+        },
+      }
     );
-
-    // IMPORTANT:
-    // This creates:
-    //
-    // /room/A7K9P2
-    //
-    // instead of /meeting
-    navigate(`/room/${code}`, {
-      state: {
-        roomName: cleanRoomName,
-        isHost: true,
-      },
-    });
-
-    setRoomName('');
-
-    if (onClose) {
-      onClose();
-    }
   };
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title="Create Secure Room"
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background:
+          'rgba(0,0,0,0.75)',
+        backdropFilter:
+          'blur(5px)',
+        display: 'flex',
+        alignItems:
+          'center',
+        justifyContent:
+          'center',
+        zIndex: 2000,
+      }}
     >
-      <form
-        onSubmit={handleCreate}
+      <div
         style={{
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '20px',
+          background: '#161616',
+          border:
+            '1px solid #333',
+          borderRadius:
+            '16px',
+          padding: '28px',
+          width: '90%',
+          maxWidth: '420px',
+          boxSizing:
+            'border-box',
         }}
       >
-        <Input
-          label="Room Name / Purpose"
-          value={roomName}
-          onChange={(e) =>
-            setRoomName(e.target.value)
-          }
-          placeholder="e.g., Sprint Review"
-          required
-        />
-
-        <Button
-          type="submit"
-          variant="primary"
-          size="md"
-          fullWidth
+        <h2
+          style={{
+            margin:
+              '0 0 8px',
+            color: '#fff',
+          }}
         >
-          Launch Room
-        </Button>
-      </form>
-    </Modal>
+          Start Meeting
+        </h2>
+
+        <p
+          style={{
+            color:
+              '#9ca3af',
+            marginBottom:
+              '25px',
+          }}
+        >
+          Your meeting room is
+          ready.
+        </p>
+
+        <div
+          style={{
+            display: 'flex',
+            flexDirection:
+              'column',
+            gap: '10px',
+          }}
+        >
+          <button
+            onClick={
+              handleCreateRoom
+            }
+            style={{
+              background:
+                '#ff6600',
+              color: '#000',
+              border: 'none',
+              padding:
+                '12px',
+              borderRadius:
+                '8px',
+              fontWeight:
+                '700',
+              cursor:
+                'pointer',
+            }}
+          >
+            Enter Meeting →
+          </button>
+
+          <button
+            onClick={onClose}
+            style={{
+              background:
+                '#222',
+              color: '#fff',
+              border:
+                '1px solid #333',
+              padding:
+                '12px',
+              borderRadius:
+                '8px',
+              fontWeight:
+                '600',
+              cursor:
+                'pointer',
+            }}
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
   );
-};
+}

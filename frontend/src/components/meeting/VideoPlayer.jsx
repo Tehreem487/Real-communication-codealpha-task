@@ -4,169 +4,102 @@ import React, {
 } from 'react';
 
 export default function VideoPlayer({
-  name = 'Participant',
-  isLocal = false,
+  stream,
+  videoRef: externalRef,
+  muted = false,
+  label = 'Participant',
   isVideoOff = false,
   isMuted = false,
-  stream = null,
-  videoRef = null,
 }) {
-  const internalVideoRef =
-    useRef(null);
+  const internalRef = useRef(null);
 
-  const finalVideoRef =
-    videoRef || internalVideoRef;
-
+  const videoRef =
+    externalRef || internalRef;
 
   useEffect(() => {
-    if (
-      finalVideoRef.current &&
-      stream
-    ) {
-      finalVideoRef.current.srcObject =
+    if (!videoRef.current) return;
+
+    if (stream) {
+      videoRef.current.srcObject =
         stream;
     }
-  }, [
-    stream,
-    finalVideoRef,
-  ]);
-
+  }, [stream, videoRef]);
 
   return (
     <div
       style={{
-        position:
-          'relative',
-        background:
-          '#161616',
+        position: 'relative',
+        background: '#151515',
         border:
           '1px solid #292929',
-        borderRadius:
-          '12px',
-        overflow:
-          'hidden',
-        minHeight:
-          '220px',
-        aspectRatio:
-          '16 / 9',
+        borderRadius: '10px',
+        overflow: 'hidden',
+        minHeight: '220px',
       }}
     >
+      <video
+        ref={videoRef}
+        autoPlay
+        playsInline
+        muted={muted}
+        style={{
+          width: '100%',
+          height: '100%',
+          minHeight: '220px',
+          objectFit: 'cover',
+          display:
+            isVideoOff
+              ? 'none'
+              : 'block',
+          background: '#080808',
+        }}
+      />
 
-      {!isVideoOff &&
-      stream ? (
-        <video
-          ref={
-            finalVideoRef
-          }
-          autoPlay
-          playsInline
-          muted={
-            isLocal ||
-            isMuted
-          }
-          style={{
-            width:
-              '100%',
-            height:
-              '100%',
-            objectFit:
-              'cover',
-            display:
-              'block',
-            background:
-              '#000',
-          }}
-        />
-      ) : (
+      {isVideoOff && (
         <div
           style={{
-            width:
-              '100%',
-            height:
-              '100%',
-            minHeight:
-              '220px',
-            display:
-              'flex',
-            alignItems:
-              'center',
+            minHeight: '220px',
+            display: 'flex',
+            alignItems: 'center',
             justifyContent:
               'center',
-            background:
-              '#1a1a1a',
+            background: '#101010',
+            color: '#9ca3af',
+            fontSize: '14px',
           }}
         >
-          <div
-            style={{
-              width:
-                '70px',
-              height:
-                '70px',
-              borderRadius:
-                '50%',
-              background:
-                '#ff6600',
-              color:
-                '#000',
-              display:
-                'flex',
-              alignItems:
-                'center',
-              justifyContent:
-                'center',
-              fontSize:
-                '28px',
-              fontWeight:
-                '800',
-            }}
-          >
-            {name
-              .charAt(0)
-              .toUpperCase()}
-          </div>
+          Camera Off
         </div>
       )}
 
-
       <div
         style={{
-          position:
-            'absolute',
+          position: 'absolute',
           left: '10px',
           bottom: '10px',
-          right: '10px',
-          display:
-            'flex',
-          justifyContent:
-            'space-between',
-          alignItems:
-            'center',
           background:
-            'rgba(0,0,0,.65)',
-          padding:
-            '7px 10px',
-          borderRadius:
-            '7px',
+            'rgba(0,0,0,0.7)',
           color: '#fff',
-          fontSize:
-            '12px',
-          fontWeight:
-            '600',
+          padding:
+            '5px 9px',
+          borderRadius: '5px',
+          fontSize: '12px',
+          fontWeight: '600',
         }}
       >
-
-        <span>
-          {name}
-        </span>
+        {label}
 
         {isMuted && (
-          <span>
+          <span
+            style={{
+              marginLeft: '6px',
+              color: '#ef4444',
+            }}
+          >
             🔇
           </span>
         )}
-
       </div>
-
     </div>
   );
 }

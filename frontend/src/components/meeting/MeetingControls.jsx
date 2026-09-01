@@ -1,5 +1,5 @@
+```jsx
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
 
 export default function MeetingControls({
   isMuted,
@@ -9,221 +9,188 @@ export default function MeetingControls({
   stream,
   setStream,
   myVideoRef,
-  onLeave,
 }) {
-  const navigate =
-    useNavigate();
 
+  /*
+   * -----------------------------------------
+   * TOGGLE MICROPHONE
+   * -----------------------------------------
+   */
 
   const toggleMute = () => {
+    const newMutedState =
+      !isMuted;
+
     if (stream) {
       stream
         .getAudioTracks()
-        .forEach(
-          (track) => {
-            track.enabled =
-              isMuted;
-          }
-        );
+        .forEach((track) => {
+          track.enabled =
+            !newMutedState;
+        });
     }
 
     setIsMuted(
-      !isMuted
+      newMutedState
     );
   };
 
+  /*
+   * -----------------------------------------
+   * TOGGLE CAMERA
+   * -----------------------------------------
+   */
 
-  const toggleVideo =
-    async () => {
-
-      if (!isVideoOff) {
-
-        if (stream) {
-          stream
-            .getVideoTracks()
-            .forEach(
-              (track) =>
-                track.stop()
-            );
-        }
-
-        setIsVideoOff(
-          true
-        );
-
-        return;
-      }
-
-
-      try {
-
-        const newStream =
-          await navigator.mediaDevices.getUserMedia(
-            {
-              video: true,
-              audio: true,
-            }
-          );
-
-
-        newStream
-          .getAudioTracks()
-          .forEach(
-            (track) => {
-              track.enabled =
-                !isMuted;
-            }
-          );
-
-
-        if (setStream) {
-          setStream(
-            newStream
-          );
-        }
-
-
-        if (
-          myVideoRef?.current
-        ) {
-          myVideoRef.current.srcObject =
-            newStream;
-        }
-
-
-        setIsVideoOff(
-          false
-        );
-
-      } catch (error) {
-
-        console.error(
-          'Unable to restart camera:',
-          error
-        );
-
-      }
-    };
-
-
-  const leaveRoom = () => {
+  const toggleVideo = () => {
+    const newVideoOffState =
+      !isVideoOff;
 
     if (stream) {
       stream
-        .getTracks()
-        .forEach(
-          (track) =>
-            track.stop()
-        );
+        .getVideoTracks()
+        .forEach((track) => {
+          track.enabled =
+            !newVideoOffState;
+        });
     }
 
-    if (onLeave) {
-      onLeave();
-    } else {
-      navigate(
-        '/dashboard'
-      );
+    /*
+     * Keep video element in sync.
+     */
+    if (myVideoRef?.current) {
+      myVideoRef.current.style.opacity =
+        newVideoOffState
+          ? '0'
+          : '1';
     }
+
+    setIsVideoOff(
+      newVideoOffState
+    );
   };
 
+  /*
+   * -----------------------------------------
+   * LEAVE / STOP MEDIA
+   * -----------------------------------------
+   */
+
+  const stopMedia = () => {
+    if (stream) {
+      stream
+        .getTracks()
+        .forEach((track) => {
+          track.stop();
+        });
+
+      setStream(null);
+    }
+
+    if (myVideoRef?.current) {
+      myVideoRef.current.srcObject =
+        null;
+    }
+  };
 
   return (
     <div
       style={{
-        display: 'flex',
-        justifyContent:
-          'center',
-        alignItems:
-          'center',
-        gap: '15px',
-        padding:
-          '15px',
-        background:
-          '#121212',
+        minHeight: '64px',
+        background: '#121212',
         borderTop:
           '1px solid #222',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '10px',
+        padding:
+          '8px 12px',
         flexShrink: 0,
       }}
     >
 
+      {/* MICROPHONE */}
+
       <button
-        onClick={
-          toggleMute
+        onClick={toggleMute}
+        title={
+          isMuted
+            ? 'Turn microphone on'
+            : 'Mute microphone'
         }
         style={{
+          width: '42px',
+          height: '42px',
+          borderRadius:
+            '50%',
+          border:
+            '1px solid #333',
           background:
             isMuted
               ? '#ef4444'
-              : '#222',
+              : '#1f1f1f',
           color: '#fff',
-          border:
-            '1px solid #333',
-          padding:
-            '10px 20px',
-          borderRadius:
-            '10px',
-          cursor:
-            'pointer',
-          fontWeight:
-            '600',
+          cursor: 'pointer',
+          fontSize: '18px',
         }}
       >
         {isMuted
-          ? 'Unmute'
-          : 'Mute'}
+          ? '🔇'
+          : '🎙️'}
       </button>
 
+      {/* CAMERA */}
 
       <button
-        onClick={
-          toggleVideo
+        onClick={toggleVideo}
+        title={
+          isVideoOff
+            ? 'Turn camera on'
+            : 'Turn camera off'
         }
         style={{
+          width: '42px',
+          height: '42px',
+          borderRadius:
+            '50%',
+          border:
+            '1px solid #333',
           background:
             isVideoOff
               ? '#ef4444'
-              : '#222',
+              : '#1f1f1f',
           color: '#fff',
-          border:
-            '1px solid #333',
-          padding:
-            '10px 20px',
-          borderRadius:
-            '10px',
-          cursor:
-            'pointer',
-          fontWeight:
-            '600',
+          cursor: 'pointer',
+          fontSize: '18px',
         }}
       >
         {isVideoOff
-          ? 'Start Video'
-          : 'Stop Video'}
+          ? '📹'
+          : '📷'}
       </button>
 
+      {/* CAMERA STATUS */}
 
-      <button
-        onClick={
-          leaveRoom
-        }
+      <span
         style={{
-          background:
-            '#ef4444',
-          color: '#fff',
-          border: 'none',
-          padding:
-            '10px 25px',
-          borderRadius:
-            '10px',
-          cursor:
-            'pointer',
+          color:
+            isVideoOff
+              ? '#ef4444'
+              : '#9ca3af',
+          fontSize:
+            '12px',
           fontWeight:
-            '700',
+            '600',
+          minWidth:
+            '75px',
         }}
       >
-        Leave Room
-      </button>
+        {isVideoOff
+          ? 'Camera Off'
+          : 'Camera On'}
+      </span>
 
     </div>
   );
 }
+```

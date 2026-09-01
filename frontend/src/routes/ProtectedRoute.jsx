@@ -1,13 +1,29 @@
 import React from 'react';
-import { Navigate, Outlet } from 'react-router-dom';
-import { useAuth } from '../hooks/useAuth'; // or relative path if hook is configured
+import { Navigate, useLocation } from 'react-router-dom';
 
-export const ProtectedRoute = () => {
-  const user = JSON.parse(localStorage.getItem('rtc_user'));
+export default function ProtectedRoute({ children }) {
+  const location = useLocation();
 
-  if (!user) {
-    return <Navigate to="/login" replace />;
+  const token =
+    localStorage.getItem('token') ||
+    localStorage.getItem('authToken') ||
+    localStorage.getItem('accessToken');
+
+  const isLoggedIn =
+    localStorage.getItem('isLoggedIn') === 'true' ||
+    !!token ||
+    !!localStorage.getItem('userInfo') ||
+    !!localStorage.getItem('workspace_profile');
+
+  if (!isLoggedIn) {
+    return (
+      <Navigate
+        to="/login"
+        replace
+        state={{ from: location.pathname + location.search }}
+      />
+    );
   }
 
-  return <Outlet />;
-};
+  return children;
+}

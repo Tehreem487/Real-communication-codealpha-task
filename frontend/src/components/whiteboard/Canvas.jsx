@@ -1,54 +1,129 @@
-import React, { useRef } from 'react';
+import React, {
+  useRef,
+} from 'react';
 
-export const Canvas = ({ canvasRef, isDrawing, setIsDrawing, brushColor, brushSize, drawLine }) => {
-  const lastPos = useRef({ x: 0, y: 0 });
+export const Canvas = ({
+  canvasRef,
+  isDrawing,
+  setIsDrawing,
+  brushColor,
+  brushSize,
+  drawLine,
+}) => {
+  const lastPos = useRef({
+    x: 0,
+    y: 0,
+  });
 
-  // Start Drawing (Mouse & Touch)
+  const getPosition = (e) => {
+    const canvas =
+      canvasRef.current;
+
+    if (!canvas) {
+      return {
+        x: 0,
+        y: 0,
+      };
+    }
+
+    const rect =
+      canvas.getBoundingClientRect();
+
+    const point =
+      e.touches?.[0] ||
+      e.changedTouches?.[0] ||
+      e;
+
+    return {
+      x:
+        point.clientX -
+        rect.left,
+      y:
+        point.clientY -
+        rect.top,
+    };
+  };
+
   const startDrawing = (e) => {
+    e.preventDefault();
+
+    const position =
+      getPosition(e);
+
+    lastPos.current =
+      position;
+
     setIsDrawing(true);
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const rect = canvas.getBoundingClientRect();
-    
-    // Support both mouse and touch coordinates
-    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-
-    lastPos.current = { x: clientX - rect.left, y: clientY - rect.top };
   };
 
-  // Draw (Mouse & Touch)
   const draw = (e) => {
+    e.preventDefault();
+
     if (!isDrawing) return;
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const rect = canvas.getBoundingClientRect();
 
-    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    const position =
+      getPosition(e);
 
-    const x = clientX - rect.left;
-    const y = clientY - rect.top;
+    drawLine(
+      lastPos.current.x,
+      lastPos.current.y,
+      position.x,
+      position.y,
+      brushColor,
+      brushSize,
+      true
+    );
 
-    drawLine(lastPos.current.x, lastPos.current.y, x, y, brushColor, brushSize, true);
-    lastPos.current = { x, y };
+    lastPos.current =
+      position;
   };
 
-  const stopDrawing = () => setIsDrawing(false);
+  const stopDrawing = (e) => {
+    if (e?.preventDefault) {
+      e.preventDefault();
+    }
+
+    setIsDrawing(false);
+  };
 
   return (
-    <div className="canvas-wrapper" style={{ width: '100%', height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+    <div
+      className="canvas-wrapper"
+      style={{
+        width: '100%',
+        height: '100%',
+        display: 'flex',
+        justifyContent:
+          'center',
+        alignItems: 'center',
+      }}
+    >
       <canvas
         ref={canvasRef}
-        onMouseDown={startDrawing}
+        onMouseDown={
+          startDrawing
+        }
         onMouseMove={draw}
         onMouseUp={stopDrawing}
-        onMouseLeave={stopDrawing}
-        onTouchStart={startDrawing}
+        onMouseLeave={
+          stopDrawing
+        }
+        onTouchStart={
+          startDrawing
+        }
         onTouchMove={draw}
-        onTouchEnd={stopDrawing}
-        style={{ touchAction: 'none' }} // Mobile par page scroll hone se rokne ke liye
+        onTouchEnd={
+          stopDrawing
+        }
+        style={{
+          touchAction: 'none',
+          display: 'block',
+          maxWidth: '100%',
+          maxHeight: '100%',
+        }}
       />
     </div>
   );
 };
+
+export default Canvas;
