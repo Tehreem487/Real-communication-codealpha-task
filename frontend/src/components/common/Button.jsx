@@ -1,5 +1,4 @@
 import React from 'react';
-import '../../styles/button.css';
 
 export const Button = ({ children, onClick, variant = 'primary', size = 'md', fullWidth = false, type = 'button' }) => {
   return (
