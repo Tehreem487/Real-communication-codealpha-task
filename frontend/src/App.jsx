@@ -1,15 +1,10 @@
 import React from 'react';
-import {
-  BrowserRouter as Router,
-  Routes,
-  Route,
-  Navigate,
-} from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 
-import Dashboard from './pages/Dashboard';
+import Landing from './pages/Landing';
 import Login from './pages/Login';
 import Register from './pages/Register';
-import Landing from './pages/Landing';
+import Dashboard from './pages/Dashboard';
 import Profile from './pages/Profile';
 import MeetingRoom from './pages/MeetingRoom';
 import NotFound from './pages/NotFound';
@@ -19,52 +14,23 @@ export default function App() {
     <Router>
       <Routes>
 
-        {/* HOME */}
-        <Route
-          path="/"
-          element={<Landing />}
-        />
+        <Route path="/" element={<Landing />} />
 
-        {/* AUTH */}
-        <Route
-          path="/login"
-          element={<Login />}
-        />
+        <Route path="/login" element={<Login />} />
 
-        <Route
-          path="/register"
-          element={<Register />}
-        />
+        <Route path="/register" element={<Register />} />
 
-        {/* DASHBOARD */}
-        <Route
-          path="/dashboard"
-          element={<Dashboard />}
-        />
+        <Route path="/dashboard" element={<Dashboard />} />
 
-        {/* PROFILE */}
-        <Route
-          path="/profile"
-          element={<Profile />}
-        />
+        <Route path="/profile" element={<Profile />} />
 
-        {/* MEETING ENTRY */}
-        <Route
-          path="/meeting"
-          element={<MeetingRoom />}
-        />
+        {/* Meeting room */}
+        <Route path="/room/:roomId" element={<MeetingRoom />} />
 
-        {/* ACTUAL SHAREABLE ROOM */}
-        <Route
-          path="/room/:roomId"
-          element={<MeetingRoom />}
-        />
+        {/* Optional old meeting route */}
+        <Route path="/meeting" element={<MeetingRoom />} />
 
-        {/* FALLBACK */}
-        <Route
-          path="*"
-          element={<NotFound />}
-        />
+        <Route path="*" element={<NotFound />} />
 
       </Routes>
     </Router>
