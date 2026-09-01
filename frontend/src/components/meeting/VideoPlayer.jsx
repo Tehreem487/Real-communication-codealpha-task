@@ -1,75 +1,172 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, {
+  useEffect,
+  useRef,
+} from 'react';
 
-export default function VideoPlayer({ name, isLocal, isVideoOff, isMuted }) {
-  const videoRef = useRef(null);
-  const [hasStream, setHasStream] = useState(false);
+export default function VideoPlayer({
+  name = 'Participant',
+  isLocal = false,
+  isVideoOff = false,
+  isMuted = false,
+  stream = null,
+  videoRef = null,
+}) {
+  const internalVideoRef =
+    useRef(null);
+
+  const finalVideoRef =
+    videoRef || internalVideoRef;
+
 
   useEffect(() => {
-    let currentStream = null;
-
-    if (isLocal && !isVideoOff) {
-      navigator.mediaDevices.getUserMedia({ video: true, audio: true })
-        .then((stream) => {
-          currentStream = stream;
-          if (videoRef.current) {
-            videoRef.current.srcObject = stream;
-            setHasStream(true);
-          }
-        })
-        .catch((err) => {
-          console.error("Camera permission error: ", err);
-          setHasStream(false);
-        });
-    } else {
-      // Agar video off hai ya local nahi hai, toh purana stream track completely stop kar do
-      if (videoRef.current && videoRef.current.srcObject) {
-        const tracks = videoRef.current.srcObject.getTracks();
-        tracks.forEach(track => track.stop());
-        videoRef.current.srcObject = null;
-      }
-      setHasStream(false);
+    if (
+      finalVideoRef.current &&
+      stream
+    ) {
+      finalVideoRef.current.srcObject =
+        stream;
     }
+  }, [
+    stream,
+    finalVideoRef,
+  ]);
 
-    return () => {
-      if (currentStream) {
-        currentStream.getTracks().forEach(t => t.stop());
-      }
-    };
-  }, [isLocal, isVideoOff]);
 
   return (
-    <div style={{ background: '#141414', border: '1px solid #262626', borderRadius: '14px', overflow: 'hidden', position: 'relative', aspectRatio: '16/9', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      
-      {/* Real Video Element or Fallback Avatar */}
-      {isLocal && !isVideoOff ? (
-        <video 
-          ref={videoRef} 
-          autoPlay 
-          playsInline 
-          muted={true} 
-          style={{ 
-            width: '100%', 
-            height: '100%', 
-            objectFit: 'cover', 
-            transform: 'scaleX(-1)',
-            display: hasStream ? 'block' : 'none' 
-          }} 
-        />
-      ) : null}
+    <div
+      style={{
+        position:
+          'relative',
+        background:
+          '#161616',
+        border:
+          '1px solid #292929',
+        borderRadius:
+          '12px',
+        overflow:
+          'hidden',
+        minHeight:
+          '220px',
+        aspectRatio:
+          '16 / 9',
+      }}
+    >
 
-      {/* Fallback Avatar jab tak stream load na ho ya video off ho */}
-      {(!isLocal || isVideoOff || !hasStream) && (
-        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#141414' }}>
-          <div style={{ width: '60px', height: '60px', background: 'linear-gradient(135deg, #ff6600, #cc5200)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.5rem', fontWeight: '700', color: '#000' }}>
-            {name ? name.charAt(0) : 'T'}
+      {!isVideoOff &&
+      stream ? (
+        <video
+          ref={
+            finalVideoRef
+          }
+          autoPlay
+          playsInline
+          muted={
+            isLocal ||
+            isMuted
+          }
+          style={{
+            width:
+              '100%',
+            height:
+              '100%',
+            objectFit:
+              'cover',
+            display:
+              'block',
+            background:
+              '#000',
+          }}
+        />
+      ) : (
+        <div
+          style={{
+            width:
+              '100%',
+            height:
+              '100%',
+            minHeight:
+              '220px',
+            display:
+              'flex',
+            alignItems:
+              'center',
+            justifyContent:
+              'center',
+            background:
+              '#1a1a1a',
+          }}
+        >
+          <div
+            style={{
+              width:
+                '70px',
+              height:
+                '70px',
+              borderRadius:
+                '50%',
+              background:
+                '#ff6600',
+              color:
+                '#000',
+              display:
+                'flex',
+              alignItems:
+                'center',
+              justifyContent:
+                'center',
+              fontSize:
+                '28px',
+              fontWeight:
+                '800',
+            }}
+          >
+            {name
+              .charAt(0)
+              .toUpperCase()}
           </div>
         </div>
       )}
 
-      {/* Name Tag */}
-      <div style={{ position: 'absolute', bottom: '12px', left: '12px', background: 'rgba(0,0,0,0.7)', padding: '4px 10px', borderRadius: '6px', fontSize: '0.8rem', color: '#fff', border: '1px solid #333', zIndex: 2 }}>
-        {name} {isLocal && '(Host)'} {isVideoOff && '(Camera Off)'}
+
+      <div
+        style={{
+          position:
+            'absolute',
+          left: '10px',
+          bottom: '10px',
+          right: '10px',
+          display:
+            'flex',
+          justifyContent:
+            'space-between',
+          alignItems:
+            'center',
+          background:
+            'rgba(0,0,0,.65)',
+          padding:
+            '7px 10px',
+          borderRadius:
+            '7px',
+          color: '#fff',
+          fontSize:
+            '12px',
+          fontWeight:
+            '600',
+        }}
+      >
+
+        <span>
+          {name}
+        </span>
+
+        {isMuted && (
+          <span>
+            🔇
+          </span>
+        )}
+
       </div>
+
     </div>
   );
 }

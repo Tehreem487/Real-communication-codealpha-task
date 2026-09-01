@@ -1,9 +1,14 @@
 import React, { useState } from 'react';
+
 import { Modal } from '../common/Modal';
 import { Input } from '../common/Input';
 import { Button } from '../common/Button';
+
 import { useNavigate } from 'react-router-dom';
-import { generateRoomCode } from '../../utils/helpers';
+
+import {
+  generateRoomCode,
+} from '../../utils/helpers';
 
 export const CreateRoomModal = ({
   isOpen,
@@ -16,23 +21,46 @@ export const CreateRoomModal = ({
   const handleCreate = (e) => {
     e.preventDefault();
 
-    const roomCode = generateRoomCode();
+    const code = generateRoomCode(6);
 
-    navigate(`/meeting/${roomCode}`, {
+    const cleanRoomName =
+      roomName.trim() || 'My Meeting';
+
+    // Save basic room information locally
+    localStorage.setItem(
+      `meeting_${code}`,
+      JSON.stringify({
+        roomId: code,
+        roomName: cleanRoomName,
+        createdAt: new Date().toISOString(),
+      })
+    );
+
+    // IMPORTANT:
+    // This creates:
+    //
+    // /room/A7K9P2
+    //
+    // instead of /meeting
+    navigate(`/room/${code}`, {
       state: {
-        roomName:
-          roomName.trim() || 'Meeting Room',
+        roomName: cleanRoomName,
+        isHost: true,
       },
     });
 
-    onClose?.();
+    setRoomName('');
+
+    if (onClose) {
+      onClose();
+    }
   };
 
   return (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Create Secure Meeting"
+      title="Create Secure Room"
     >
       <form
         onSubmit={handleCreate}
@@ -43,12 +71,12 @@ export const CreateRoomModal = ({
         }}
       >
         <Input
-          label="Meeting Name"
+          label="Room Name / Purpose"
           value={roomName}
           onChange={(e) =>
             setRoomName(e.target.value)
           }
-          placeholder="e.g. Sprint Review"
+          placeholder="e.g., Sprint Review"
           required
         />
 
@@ -58,7 +86,7 @@ export const CreateRoomModal = ({
           size="md"
           fullWidth
         >
-          Start Meeting
+          Launch Room
         </Button>
       </form>
     </Modal>

@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
+
 import { Modal } from '../common/Modal';
 import { Input } from '../common/Input';
 import { Button } from '../common/Button';
+
 import { useNavigate } from 'react-router-dom';
 
 export const JoinRoomModal = ({
@@ -15,22 +17,26 @@ export const JoinRoomModal = ({
   const handleJoin = (e) => {
     e.preventDefault();
 
-    const code = roomCode
+    const cleanCode = roomCode
       .trim()
       .toUpperCase();
 
-    if (!code) return;
+    if (!cleanCode) return;
 
-    navigate(`/meeting/${code}`);
+    navigate(`/room/${cleanCode}`);
 
-    onClose?.();
+    setRoomCode('');
+
+    if (onClose) {
+      onClose();
+    }
   };
 
   return (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Join Meeting"
+      title="Join Existing Room"
     >
       <form
         onSubmit={handleJoin}
@@ -41,14 +47,14 @@ export const JoinRoomModal = ({
         }}
       >
         <Input
-          label="Meeting Code"
+          label="Room Code"
           value={roomCode}
           onChange={(e) =>
             setRoomCode(
               e.target.value.toUpperCase()
             )
           }
-          placeholder="e.g. X7K9PQ"
+          placeholder="Enter room code..."
           required
         />
 
@@ -58,7 +64,7 @@ export const JoinRoomModal = ({
           size="md"
           fullWidth
         >
-          Join Meeting
+          Enter Room
         </Button>
       </form>
     </Modal>

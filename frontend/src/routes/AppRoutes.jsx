@@ -2,7 +2,7 @@ import React from 'react';
 import {
   BrowserRouter,
   Routes,
-  Route,
+  Route
 } from 'react-router-dom';
 
 import Landing from '../pages/Landing';
@@ -18,40 +18,24 @@ export default function AppRoutes() {
     <BrowserRouter>
       <Routes>
 
-        <Route
-          path="/"
-          element={<Landing />}
-        />
+        {/* Public */}
+        <Route path="/" element={<Landing />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
 
-        <Route
-          path="/login"
-          element={<Login />}
-        />
+        {/* Main App */}
+        <Route path="/dashboard" element={<Dashboard />} />
 
-        <Route
-          path="/register"
-          element={<Register />}
-        />
+        {/* IMPORTANT: Meeting route */}
+        <Route path="/meeting" element={<MeetingRoom />} />
 
-        <Route
-          path="/dashboard"
-          element={<Dashboard />}
-        />
+        {/* Room with ID */}
+        <Route path="/room/:roomId" element={<MeetingRoom />} />
 
-        <Route
-          path="/meeting/:roomId"
-          element={<MeetingRoom />}
-        />
+        <Route path="/profile" element={<Profile />} />
 
-        <Route
-          path="/profile"
-          element={<Profile />}
-        />
-
-        <Route
-          path="*"
-          element={<NotFound />}
-        />
+        {/* 404 */}
+        <Route path="*" element={<NotFound />} />
 
       </Routes>
     </BrowserRouter>

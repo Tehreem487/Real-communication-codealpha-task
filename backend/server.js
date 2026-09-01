@@ -1,7 +1,7 @@
-require('dotenv').config();
-
 const http = require('http');
 const { Server } = require('socket.io');
+
+require('dotenv').config();
 
 const app = require('./app');
 const connectDB = require('./config/db');
@@ -10,148 +10,96 @@ connectDB();
 
 const server = http.createServer(app);
 
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'https://real-communication-codealpha-task.vercel.app',
+];
+
 const io = new Server(server, {
   cors: {
-    origin: '*',
+    origin: allowedOrigins,
     methods: [
       'GET',
       'POST',
-      'PUT',
-      'DELETE',
-      'OPTIONS',
     ],
     credentials: true,
   },
-
-  transports: [
-    'websocket',
-    'polling',
-  ],
 });
-
-const rooms = new Map();
 
 io.on('connection', (socket) => {
   console.log(
-    `🟢 User connected: ${socket.id}`
+    `User connected: ${socket.id}`
   );
 
   socket.on(
     'join-room',
-    ({ roomId, userName }) => {
+    (roomId, userId) => {
       if (!roomId) return;
 
       socket.join(roomId);
 
-      socket.roomId = roomId;
-
-      socket.userName =
-        userName || 'Participant';
-
-      if (!rooms.has(roomId)) {
-        rooms.set(roomId, new Map());
-      }
-
-      const room =
-        rooms.get(roomId);
-
-      const existingUsers =
-        Array.from(
-          room.entries()
-        ).map(
-          ([userId, user]) => ({
-            userId,
-            name: user.name,
-          })
-        );
-
-      // Send existing users to new user
-      socket.emit(
-        'room-users',
-        existingUsers.map(
-          (user) => user.userId
-        )
+      console.log(
+        `User ${userId} joined room ${roomId}`
       );
 
-      room.set(socket.id, {
-        name: socket.userName,
-      });
-
-      // Send complete participant list
-      io.to(roomId).emit(
-        'room-participants',
-        Array.from(
-          room.entries()
-        ).map(
-          ([userId, user]) => ({
-            userId,
-            name: user.name,
-          })
-        )
-      );
-
-      // Tell existing users that new user joined
+      /*
+       * Existing users ko new user notify
+       */
       socket
         .to(roomId)
         .emit(
-          'user-joined',
-          {
-            userId:
-              socket.id,
-            name:
-              socket.userName,
-          }
+          'user-connected',
+          userId
         );
 
-      console.log(
-        `👤 ${socket.userName} joined room ${roomId}`
+      /*
+       * Current room users
+       */
+      const room =
+        io.sockets.adapter.rooms.get(
+          roomId
+        );
+
+      const users = room
+        ? Array.from(room)
+        : [];
+
+      io.to(roomId).emit(
+        'room-participants',
+        users.map((socketId) => ({
+          socketId,
+          name:
+            socketId === socket.id
+              ? userId
+              : `Participant`,
+        }))
       );
     }
   );
 
-  // WebRTC Offer
+  /*
+   * Leave room
+   */
   socket.on(
-    'webrtc-offer',
-    ({ target, offer }) => {
-      io.to(target).emit(
-        'webrtc-offer',
-        {
-          from: socket.id,
-          offer,
-        }
-      );
+    'leave-room',
+    ({ roomId, userId }) => {
+      if (!roomId) return;
+
+      socket.leave(roomId);
+
+      socket
+        .to(roomId)
+        .emit(
+          'user-disconnected',
+          userId
+        );
     }
   );
 
-  // WebRTC Answer
-  socket.on(
-    'webrtc-answer',
-    ({ target, answer }) => {
-      io.to(target).emit(
-        'webrtc-answer',
-        {
-          from: socket.id,
-          answer,
-        }
-      );
-    }
-  );
-
-  // ICE Candidate
-  socket.on(
-    'webrtc-ice-candidate',
-    ({ target, candidate }) => {
-      io.to(target).emit(
-        'webrtc-ice-candidate',
-        {
-          from: socket.id,
-          candidate,
-        }
-      );
-    }
-  );
-
-  // Chat
+  /*
+   * Chat
+   */
   socket.on(
     'send-message',
     (data) => {
@@ -159,16 +107,14 @@ io.on('connection', (socket) => {
 
       io.to(data.roomId).emit(
         'receive-message',
-        {
-          ...data,
-          senderId:
-            socket.id,
-        }
+        data
       );
     }
   );
 
-  // Whiteboard
+  /*
+   * Whiteboard
+   */
   socket.on(
     'draw-stroke',
     (data) => {
@@ -183,53 +129,14 @@ io.on('connection', (socket) => {
     }
   );
 
+  /*
+   * Disconnect
+   */
   socket.on(
     'disconnect',
     () => {
-      const roomId =
-        socket.roomId;
-
-      if (!roomId) {
-        console.log(
-          `🔴 User disconnected: ${socket.id}`
-        );
-        return;
-      }
-
-      const room =
-        rooms.get(roomId);
-
-      if (room) {
-        room.delete(
-          socket.id
-        );
-
-        socket
-          .to(roomId)
-          .emit(
-            'user-left',
-            socket.id
-          );
-
-        io.to(roomId).emit(
-          'room-participants',
-          Array.from(
-            room.entries()
-          ).map(
-            ([userId, user]) => ({
-              userId,
-              name: user.name,
-            })
-          )
-        );
-
-        if (room.size === 0) {
-          rooms.delete(roomId);
-        }
-      }
-
       console.log(
-        `🔴 User left room: ${roomId}`
+        `User disconnected: ${socket.id}`
       );
     }
   );
@@ -243,7 +150,7 @@ server.listen(
   '0.0.0.0',
   () => {
     console.log(
-      `🚀 Server running on port ${PORT}`
+      `Server running on port ${PORT}`
     );
   }
 );

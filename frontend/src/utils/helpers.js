@@ -6,17 +6,23 @@ export const formatTime = (dateString) => {
 
   const date = new Date(dateString);
 
+  if (Number.isNaN(date.getTime())) {
+    return '';
+  }
+
   return date.toLocaleTimeString([], {
     hour: '2-digit',
     minute: '2-digit',
   });
 };
 
+
 /**
- * Generate a unique 6-character meeting code
+ * Generate a random alphanumeric room code
  */
 export const generateRoomCode = (length = 6) => {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const chars =
+    'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
 
   let result = '';
 
@@ -29,35 +35,57 @@ export const generateRoomCode = (length = 6) => {
   return result;
 };
 
+
 /**
- * Create a full shareable meeting URL
+ * Truncate long strings
  */
-export const createMeetingLink = (roomId) => {
-  return `${window.location.origin}/meeting/${roomId}`;
+export const truncateText = (
+  text,
+  maxLength = 20
+) => {
+  if (!text) return '';
+
+  const value = String(text);
+
+  return value.length > maxLength
+    ? `${value.substring(0, maxLength)}...`
+    : value;
 };
+
+
+/**
+ * Generate complete meeting URL
+ *
+ * Example:
+ * https://your-app.vercel.app/room/ABC123
+ */
+export const getMeetingUrl = (roomId) => {
+  if (!roomId) return '';
+
+  return `${window.location.origin}/room/${roomId}`;
+};
+
 
 /**
  * Copy meeting link to clipboard
  */
 export const copyMeetingLink = async (roomId) => {
-  const link = createMeetingLink(roomId);
-
   try {
-    await navigator.clipboard.writeText(link);
+    const meetingUrl = getMeetingUrl(roomId);
+
+    if (!meetingUrl) {
+      return false;
+    }
+
+    await navigator.clipboard.writeText(meetingUrl);
+
     return true;
   } catch (error) {
-    console.error('Unable to copy meeting link:', error);
+    console.error(
+      'Unable to copy meeting link:',
+      error
+    );
+
     return false;
   }
-};
-
-/**
- * Truncate long strings
- */
-export const truncateText = (text, maxLength = 20) => {
-  if (!text) return '';
-
-  return text.length > maxLength
-    ? `${text.substring(0, maxLength)}...`
-    : text;
 };

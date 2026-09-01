@@ -17,6 +17,7 @@ const app = express();
 const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:3000',
+  'https://real-communication-codealpha-task.vercel.app',
 ];
 
 app.use(
@@ -27,13 +28,16 @@ app.use(
       }
 
       if (
-        allowedOrigins.includes(origin) ||
-        process.env.FRONTEND_URL === origin
+        allowedOrigins.includes(origin)
       ) {
         return callback(null, true);
       }
 
-      return callback(null, true);
+      return callback(
+        new Error(
+          'Not allowed by CORS'
+        )
+      );
     },
     credentials: true,
   })
@@ -50,14 +54,7 @@ app.get('/', (req, res) => {
   res.json({
     success: true,
     message:
-      'Real-Time Communication API is running',
-  });
-});
-
-app.get('/api/health', (req, res) => {
-  res.json({
-    success: true,
-    message: 'Backend is healthy',
+      'Real-Time Communication API is running...',
   });
 });
 
