@@ -19,12 +19,10 @@ const allowedOrigins = [
 const io = new Server(server, {
   cors: {
     origin: allowedOrigins,
-    methods: [
-      'GET',
-      'POST',
-    ],
+    methods: ['GET', 'POST'],
     credentials: true,
   },
+  transports: ['polling', 'websocket'],
 });
 
 io.on('connection', (socket) => {
@@ -32,93 +30,242 @@ io.on('connection', (socket) => {
     `User connected: ${socket.id}`
   );
 
+  /*
+   * JOIN ROOM
+   */
   socket.on(
     'join-room',
-    (roomId, userId) => {
+    (roomId) => {
       if (!roomId) return;
+
+      socket.data.roomId = roomId;
 
       socket.join(roomId);
 
-      console.log(
-        `User ${userId} joined room ${roomId}`
+      const room =
+        io.sockets.adapter.rooms.get(
+          roomId
+        );
+
+      const existingUsers = room
+        ? Array.from(room).filter(
+            (id) => id !== socket.id
+          )
+        : [];
+
+      /*
+       * Send existing users
+       * ONLY to new user.
+       */
+      socket.emit(
+        'room-users',
+        existingUsers
       );
 
       /*
-       * Existing users ko new user notify
+       * Tell existing users
+       * that someone joined.
        */
       socket
         .to(roomId)
         .emit(
-          'user-connected',
-          userId
+          'user-joined',
+          socket.id
         );
 
       /*
-       * Current room users
+       * Participant list
        */
+      const users = room
+        ? Array.from(room)
+        : [socket.id];
+
+      io.to(roomId).emit(
+        'room-participants',
+        users.map(
+          (socketId) => ({
+            socketId,
+            name:
+              socketId === socket.id
+                ? 'You'
+                : 'Participant',
+          })
+        )
+      );
+
+      console.log(
+        `Socket ${socket.id} joined room ${roomId}`
+      );
+    }
+  );
+
+  /*
+   * WEBRTC OFFER
+   */
+  socket.on(
+    'webrtc-offer',
+    ({
+      to,
+      offer,
+      roomId,
+    }) => {
+      if (
+        !to ||
+        !offer ||
+        !roomId
+      ) {
+        return;
+      }
+
+      io.to(to).emit(
+        'webrtc-offer',
+        {
+          from: socket.id,
+          offer,
+        }
+      );
+    }
+  );
+
+  /*
+   * WEBRTC ANSWER
+   */
+  socket.on(
+    'webrtc-answer',
+    ({
+      to,
+      answer,
+      roomId,
+    }) => {
+      if (
+        !to ||
+        !answer ||
+        !roomId
+      ) {
+        return;
+      }
+
+      io.to(to).emit(
+        'webrtc-answer',
+        {
+          from: socket.id,
+          answer,
+        }
+      );
+    }
+  );
+
+  /*
+   * ICE CANDIDATE
+   */
+  socket.on(
+    'webrtc-ice-candidate',
+    ({
+      to,
+      candidate,
+      roomId,
+    }) => {
+      if (
+        !to ||
+        !candidate ||
+        !roomId
+      ) {
+        return;
+      }
+
+      io.to(to).emit(
+        'webrtc-ice-candidate',
+        {
+          from: socket.id,
+          candidate,
+        }
+      );
+    }
+  );
+
+  /*
+   * LEAVE ROOM
+   */
+  socket.on(
+    'leave-room',
+    (roomId) => {
+      const actualRoomId =
+        roomId ||
+        socket.data.roomId;
+
+      if (!actualRoomId) {
+        return;
+      }
+
+      socket.leave(
+        actualRoomId
+      );
+
+      socket
+        .to(actualRoomId)
+        .emit(
+          'user-left',
+          socket.id
+        );
+
       const room =
         io.sockets.adapter.rooms.get(
-          roomId
+          actualRoomId
         );
 
       const users = room
         ? Array.from(room)
         : [];
 
-      io.to(roomId).emit(
+      io.to(actualRoomId).emit(
         'room-participants',
-        users.map((socketId) => ({
-          socketId,
-          name:
-            socketId === socket.id
-              ? userId
-              : `Participant`,
-        }))
+        users.map(
+          (socketId) => ({
+            socketId,
+            name:
+              socketId === socket.id
+                ? 'You'
+                : 'Participant',
+          })
+        )
       );
+
+      socket.data.roomId =
+        null;
     }
   );
 
   /*
-   * Leave room
-   */
-  socket.on(
-    'leave-room',
-    ({ roomId, userId }) => {
-      if (!roomId) return;
-
-      socket.leave(roomId);
-
-      socket
-        .to(roomId)
-        .emit(
-          'user-disconnected',
-          userId
-        );
-    }
-  );
-
-  /*
-   * Chat
+   * CHAT
    */
   socket.on(
     'send-message',
     (data) => {
-      if (!data?.roomId) return;
+      if (!data?.roomId) {
+        return;
+      }
 
       io.to(data.roomId).emit(
         'receive-message',
-        data
+        {
+          ...data,
+          senderId:
+            data.senderId ||
+            socket.id,
+        }
       );
     }
   );
 
   /*
-   * Whiteboard
+   * WHITEBOARD
    */
   socket.on(
     'draw-stroke',
     (data) => {
-      if (!data?.roomId) return;
+      if (!data?.roomId) {
+        return;
+      }
 
       socket
         .to(data.roomId)
@@ -130,11 +277,42 @@ io.on('connection', (socket) => {
   );
 
   /*
-   * Disconnect
+   * DISCONNECT
    */
   socket.on(
     'disconnect',
     () => {
+      const roomId =
+        socket.data.roomId;
+
+      if (roomId) {
+        socket
+          .to(roomId)
+          .emit(
+            'user-left',
+            socket.id
+          );
+
+        const room =
+          io.sockets.adapter.rooms.get(
+            roomId
+          );
+
+        const users = room
+          ? Array.from(room)
+          : [];
+
+        io.to(roomId).emit(
+          'room-participants',
+          users.map(
+            (socketId) => ({
+              socketId,
+              name: 'Participant',
+            })
+          )
+        );
+      }
+
       console.log(
         `User disconnected: ${socket.id}`
       );

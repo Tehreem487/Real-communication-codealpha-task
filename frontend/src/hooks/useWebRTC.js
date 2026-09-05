@@ -5,96 +5,71 @@ import {
   useState,
 } from 'react';
 
-import { useSocket } from './useSocket';
-
-export function useWebRTC(roomId, localStream) {
-  const socket = useSocket();
-
+export function useWebRTC(
+  roomId,
+  localStream,
+  socket
+) {
   const [peers, setPeers] = useState([]);
 
   const peerConnections = useRef({});
-  const localStreamRef = useRef(null);
+  const pendingIceCandidates = useRef({});
+  const localStreamRef = useRef(localStream);
 
-  /*
-   * Keep latest local stream available
-   */
   useEffect(() => {
     localStreamRef.current = localStream;
-
-    if (!localStream) return;
-
-    /*
-     * Add newly available tracks
-     * to existing peer connections.
-     */
-    Object.values(
-      peerConnections.current
-    ).forEach((pc) => {
-      const senders = pc.getSenders();
-
-      localStream.getTracks().forEach((track) => {
-        const alreadyAdded = senders.some(
-          (sender) =>
-            sender.track?.id === track.id
-        );
-
-        if (!alreadyAdded) {
-          try {
-            pc.addTrack(
-              track,
-              localStream
-            );
-          } catch (error) {
-            console.error(
-              'Adding track error:',
-              error
-            );
-          }
-        }
-      });
-    });
   }, [localStream]);
 
-  /*
-   * Remove peer safely
-   */
-  const removePeer = useCallback(
-    (userId) => {
-      const pc =
-        peerConnections.current[userId];
+  const removePeer = useCallback((userId) => {
+    const pc = peerConnections.current[userId];
 
-      if (pc) {
-        try {
-          pc.close();
-        } catch (error) {
-          console.error(error);
-        }
+    if (pc) {
+      try {
+        pc.ontrack = null;
+        pc.onicecandidate = null;
+        pc.onconnectionstatechange = null;
+        pc.close();
+      } catch (error) {
+        console.error(error);
       }
+    }
 
-      delete peerConnections.current[userId];
+    delete peerConnections.current[userId];
+    delete pendingIceCandidates.current[userId];
 
-      setPeers((current) =>
-        Array.isArray(current)
-          ? current.filter(
-              (peer) => peer.id !== userId
-            )
-          : []
-      );
-    },
-    []
-  );
+    setPeers((current) =>
+      Array.isArray(current)
+        ? current.filter(
+            (peer) => peer.id !== userId
+          )
+        : []
+    );
+  }, []);
 
   useEffect(() => {
-    if (!socket || !roomId) return;
-
     /*
-     * Create PeerConnection
+     * VERY IMPORTANT:
+     * Join room only after socket + room + media
+     * are all ready.
      */
-    const createPeerConnection = (
+    if (
+      !socket ||
+      !roomId ||
+      !localStream
+    ) {
+      return;
+    }
+
+    const createPeerConnection = async (
       userId,
-      createOffer = false
+      initiator
     ) => {
-      if (!userId) return null;
+      if (
+        !userId ||
+        userId === socket.id
+      ) {
+        return null;
+      }
 
       if (
         peerConnections.current[userId]
@@ -121,20 +96,23 @@ export function useWebRTC(roomId, localStream) {
       peerConnections.current[userId] =
         pc;
 
+      pendingIceCandidates.current[userId] =
+        [];
+
       /*
-       * Add current local tracks
+       * Add local audio/video tracks
        */
-      const currentStream =
+      const stream =
         localStreamRef.current;
 
-      if (currentStream) {
-        currentStream
+      if (stream) {
+        stream
           .getTracks()
           .forEach((track) => {
             try {
               pc.addTrack(
                 track,
-                currentStream
+                stream
               );
             } catch (error) {
               console.error(
@@ -146,13 +124,15 @@ export function useWebRTC(roomId, localStream) {
       }
 
       /*
-       * Remote track
+       * RECEIVE REMOTE STREAM
        */
       pc.ontrack = (event) => {
         const remoteStream =
           event.streams?.[0];
 
-        if (!remoteStream) return;
+        if (!remoteStream) {
+          return;
+        }
 
         setPeers((current) => {
           const safeCurrent =
@@ -183,17 +163,22 @@ export function useWebRTC(roomId, localStream) {
             ...safeCurrent,
             {
               id: userId,
-              stream: remoteStream,
+              stream:
+                remoteStream,
             },
           ];
         });
       };
 
       /*
-       * ICE candidate
+       * ICE
        */
-      pc.onicecandidate = (event) => {
-        if (!event.candidate) return;
+      pc.onicecandidate = (
+        event
+      ) => {
+        if (!event.candidate) {
+          return;
+        }
 
         socket.emit(
           'webrtc-ice-candidate',
@@ -207,132 +192,168 @@ export function useWebRTC(roomId, localStream) {
       };
 
       /*
-       * Connection state
+       * CONNECTION STATE
        */
       pc.onconnectionstatechange =
         () => {
-          const state =
-            pc.connectionState;
-
           console.log(
-            `Peer ${userId} connection:`,
-            state
+            `Peer ${userId}:`,
+            pc.connectionState
           );
 
           if (
-            state === 'failed' ||
-            state === 'closed' ||
-            state === 'disconnected'
+            [
+              'failed',
+              'closed',
+              'disconnected',
+            ].includes(
+              pc.connectionState
+            )
           ) {
             removePeer(userId);
           }
         };
 
       /*
-       * Create offer
+       * CREATE OFFER
+       *
+       * Only the NEW user creates
+       * offers to existing users.
        */
-      if (createOffer) {
-        pc.createOffer()
-          .then((offer) =>
-            pc.setLocalDescription(
-              offer
-            )
-          )
-          .then(() => {
-            socket.emit(
-              'webrtc-offer',
-              {
-                to: userId,
-                offer:
-                  pc.localDescription,
-                roomId,
-              }
-            );
-          })
-          .catch((error) => {
-            console.error(
-              'Create offer error:',
-              error
-            );
-          });
+      if (initiator) {
+        try {
+          const offer =
+            await pc.createOffer();
+
+          await pc.setLocalDescription(
+            offer
+          );
+
+          socket.emit(
+            'webrtc-offer',
+            {
+              to: userId,
+              offer:
+                pc.localDescription,
+              roomId,
+            }
+          );
+        } catch (error) {
+          console.error(
+            'Offer error:',
+            error
+          );
+        }
       }
 
       return pc;
     };
 
     /*
-     * Existing users in room
+     * Flush ICE candidates that arrived
+     * before remote description.
      */
-    const handleRoomUsers = (users) => {
+    const flushIceCandidates =
+      async (userId, pc) => {
+        const queued =
+          pendingIceCandidates
+            .current[userId] || [];
+
+        for (const candidate of queued) {
+          try {
+            await pc.addIceCandidate(
+              new RTCIceCandidate(
+                candidate
+              )
+            );
+          } catch (error) {
+            console.error(
+              'Queued ICE error:',
+              error
+            );
+          }
+        }
+
+        pendingIceCandidates.current[
+          userId
+        ] = [];
+      };
+
+    /*
+     * Existing users in room.
+     *
+     * NEW USER creates offers.
+     */
+    const handleRoomUsers = async (
+      users
+    ) => {
       const safeUsers =
         Array.isArray(users)
           ? users
           : [];
 
       console.log(
-        'Room users:',
+        'Existing room users:',
         safeUsers
       );
 
-      safeUsers.forEach((userId) => {
+      for (const userId of safeUsers) {
         if (
           userId &&
           userId !== socket.id
         ) {
-          createPeerConnection(
+          await createPeerConnection(
             userId,
             true
           );
         }
-      });
+      }
     };
 
     /*
-     * New user joined
+     * Existing users only receive
+     * notification.
      */
     const handleUserJoined = (
       userId
     ) => {
-      if (
-        !userId ||
-        userId === socket.id
-      ) {
-        return;
-      }
-
       console.log(
         'User joined:',
         userId
       );
-
-      createPeerConnection(
-        userId,
-        false
-      );
     };
 
     /*
-     * Offer
+     * OFFER
      */
     const handleOffer = async ({
       from,
       offer,
     }) => {
-      if (!from || !offer) return;
+      if (!from || !offer) {
+        return;
+      }
 
       const pc =
-        createPeerConnection(
+        await createPeerConnection(
           from,
           false
         );
 
-      if (!pc) return;
+      if (!pc) {
+        return;
+      }
 
       try {
         await pc.setRemoteDescription(
           new RTCSessionDescription(
             offer
           )
+        );
+
+        await flushIceCandidates(
+          from,
+          pc
         );
 
         const answer =
@@ -346,33 +367,38 @@ export function useWebRTC(roomId, localStream) {
           'webrtc-answer',
           {
             to: from,
-            answer,
+            answer:
+              pc.localDescription,
             roomId,
           }
         );
       } catch (error) {
         console.error(
-          'Offer handling error:',
+          'Handle offer error:',
           error
         );
       }
     };
 
     /*
-     * Answer
+     * ANSWER
      */
     const handleAnswer = async ({
       from,
       answer,
     }) => {
-      if (!from || !answer) return;
+      if (!from || !answer) {
+        return;
+      }
 
       const pc =
         peerConnections.current[
           from
         ];
 
-      if (!pc) return;
+      if (!pc) {
+        return;
+      }
 
       try {
         await pc.setRemoteDescription(
@@ -380,48 +406,75 @@ export function useWebRTC(roomId, localStream) {
             answer
           )
         );
+
+        await flushIceCandidates(
+          from,
+          pc
+        );
       } catch (error) {
         console.error(
-          'Answer handling error:',
+          'Handle answer error:',
           error
         );
       }
     };
 
     /*
-     * ICE
+     * ICE CANDIDATE
      */
-    const handleIceCandidate =
-      async ({
-        from,
-        candidate,
-      }) => {
-        if (!from || !candidate)
-          return;
+    const handleIceCandidate = async ({
+      from,
+      candidate,
+    }) => {
+      if (!from || !candidate) {
+        return;
+      }
 
-        const pc =
-          peerConnections.current[
+      const pc =
+        peerConnections.current[
+          from
+        ];
+
+      /*
+       * Candidate arrived before
+       * remote description.
+       */
+      if (
+        !pc ||
+        !pc.remoteDescription
+      ) {
+        if (
+          !pendingIceCandidates
+            .current[from]
+        ) {
+          pendingIceCandidates.current[
             from
-          ];
-
-        if (!pc) return;
-
-        try {
-          await pc.addIceCandidate(
-            new RTCIceCandidate(
-              candidate
-            )
-          );
-        } catch (error) {
-          console.error(
-            'ICE candidate error:',
-            error
-          );
+          ] = [];
         }
-      };
+
+        pendingIceCandidates.current[
+          from
+        ].push(candidate);
+
+        return;
+      }
+
+      try {
+        await pc.addIceCandidate(
+          new RTCIceCandidate(
+            candidate
+          )
+        );
+      } catch (error) {
+        console.error(
+          'ICE error:',
+          error
+        );
+      }
+    };
 
     /*
-     * User left
+     * USER LEFT
      */
     const handleUserLeft = (
       userId
@@ -435,7 +488,7 @@ export function useWebRTC(roomId, localStream) {
     };
 
     /*
-     * Socket listeners
+     * SOCKET LISTENERS
      */
     socket.on(
       'room-users',
@@ -468,16 +521,18 @@ export function useWebRTC(roomId, localStream) {
     );
 
     /*
-     * Join room
+     * JOIN ONLY AFTER MEDIA EXISTS
      */
     socket.emit(
       'join-room',
       roomId
     );
 
-    /*
-     * Cleanup
-     */
+    console.log(
+      'Joined meeting room:',
+      roomId
+    );
+
     return () => {
       socket.off(
         'room-users',
@@ -509,6 +564,15 @@ export function useWebRTC(roomId, localStream) {
         handleUserLeft
       );
 
+      try {
+        socket.emit(
+          'leave-room',
+          roomId
+        );
+      } catch (error) {
+        console.error(error);
+      }
+
       Object.values(
         peerConnections.current
       ).forEach((pc) => {
@@ -520,12 +584,14 @@ export function useWebRTC(roomId, localStream) {
       });
 
       peerConnections.current = {};
+      pendingIceCandidates.current = {};
 
       setPeers([]);
     };
   }, [
-    socket,
     roomId,
+    localStream,
+    socket,
     removePeer,
   ]);
 

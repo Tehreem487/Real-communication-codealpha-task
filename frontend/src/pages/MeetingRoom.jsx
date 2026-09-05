@@ -115,11 +115,12 @@ export default function MeetingRoom() {
    */
 
   const {
-    peers,
-  } = useWebRTC(
-    roomId,
-    stream
-  );
+  peers,
+} = useWebRTC(
+  roomId,
+  stream,
+  socket
+);
 
   /*
    * -----------------------------------------

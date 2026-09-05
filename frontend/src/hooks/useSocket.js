@@ -2,36 +2,20 @@ import { useEffect, useState } from 'react';
 import { io } from 'socket.io-client';
 
 const SOCKET_URL =
-  import.meta.env.VITE_API_URL;
+  import.meta.env.VITE_SOCKET_URL ||
+  'http://localhost:5000';
 
 export function useSocket() {
   const [socket, setSocket] = useState(null);
 
   useEffect(() => {
-    if (!SOCKET_URL) {
-      console.error(
-        'VITE_API_URL is missing.'
-      );
-      return;
-    }
-
     const newSocket = io(SOCKET_URL, {
-      transports: ['websocket', 'polling'],
+      transports: ['polling', 'websocket'],
       withCredentials: true,
-    });
-
-    newSocket.on('connect', () => {
-      console.log(
-        'Socket connected:',
-        newSocket.id
-      );
-    });
-
-    newSocket.on('connect_error', (error) => {
-      console.error(
-        'Socket connection error:',
-        error
-      );
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
     });
 
     setSocket(newSocket);
