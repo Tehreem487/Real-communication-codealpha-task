@@ -10,17 +10,9 @@ connectDB();
 
 const server = http.createServer(app);
 
-/*
-|--------------------------------------------------------------------------
-| CORS
-|--------------------------------------------------------------------------
-*/
-
 const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:3000',
-
-  // Vercel frontend
   'https://real-communication-codealpha-task.vercel.app',
 ];
 
@@ -30,143 +22,190 @@ const io = new Server(server, {
     methods: ['GET', 'POST'],
     credentials: true,
   },
+
+  transports: [
+    'polling',
+    'websocket',
+  ],
+
+  connectionStateRecovery: {
+    maxDisconnectionDuration:
+      2 * 60 * 1000,
+
+    skipMiddlewares: true,
+  },
 });
 
-/*
-|--------------------------------------------------------------------------
-| SOCKET CONNECTION
-|--------------------------------------------------------------------------
-*/
-
 io.on('connection', (socket) => {
-  console.log(`User connected: ${socket.id}`);
+  console.log(
+    `✅ User connected: ${socket.id}`
+  );
 
   /*
-  |--------------------------------------------------------------------------
-  | JOIN ROOM
-  |--------------------------------------------------------------------------
-  */
-
-  socket.on('join-room', (roomId, userId) => {
-    if (!roomId) {
-      return;
-    }
-
-    /*
-     * Agar frontend userId nahi bhej raha
-     * to socket.id use hoga.
-     */
-    const currentUserId =
-      userId || socket.id;
-
-    socket.join(roomId);
-
-    console.log(
-      `User ${currentUserId} joined room ${roomId}`
-    );
-
-    /*
-     * Existing users ko batana:
-     * ek new user room mein aya hai.
-     */
-    socket
-      .to(roomId)
-      .emit(
-        'user-joined',
-        socket.id
-      );
-
-    /*
-     * Room ke existing users.
-     */
-    const room =
-      io.sockets.adapter.rooms.get(roomId);
-
-    const users = room
-      ? Array.from(room)
-      : [];
-
-    /*
-     * Frontend useWebRTC.js
-     * "room-users" listen karta hai.
-     */
-    socket.emit(
-      'room-users',
-      users.filter(
-        (id) => id !== socket.id
-      )
-    );
-
-    /*
-     * Participant list ke liye.
-     */
-    io.to(roomId).emit(
-      'room-participants',
-      users.map((socketId) => ({
-        socketId,
-        name:
-          socketId === socket.id
-            ? currentUserId
-            : 'Participant',
-      }))
-    );
-  });
-
-  /*
-  |--------------------------------------------------------------------------
-  | LEAVE ROOM
-  |--------------------------------------------------------------------------
-  */
+   * JOIN ROOM
+   */
 
   socket.on(
-    'leave-room',
-    ({ roomId, userId } = {}) => {
-      if (!roomId) {
-        return;
-      }
+    'join-room',
+    (roomId) => {
+      if (!roomId) return;
 
-      socket.leave(roomId);
+      socket.data.roomId = roomId;
 
-      console.log(
-        `User ${userId || socket.id} left room ${roomId}`
+      socket.join(roomId);
+
+      const room =
+        io.sockets.adapter.rooms.get(
+          roomId
+        );
+
+      const existingUsers = room
+        ? Array.from(room).filter(
+            (id) =>
+              id !== socket.id
+          )
+        : [];
+
+      /*
+       * Tell new user about
+       * existing users
+       */
+
+      socket.emit(
+        'room-users',
+        existingUsers
       );
 
       /*
-       * Frontend useWebRTC.js
-       * "user-left" listen karta hai.
+       * Tell existing users
+       * that a new user joined
        */
+
       socket
         .to(roomId)
         .emit(
-          'user-left',
+          'user-joined',
           socket.id
         );
 
       /*
-       * Updated participant list
+       * Participants
        */
-      const room =
-        io.sockets.adapter.rooms.get(roomId);
 
       const users = room
         ? Array.from(room)
-        : [];
+        : [socket.id];
 
       io.to(roomId).emit(
         'room-participants',
-        users.map((socketId) => ({
-          socketId,
-          name: 'Participant',
-        }))
+        users.map(
+          (socketId) => ({
+            socketId,
+            name:
+              socketId ===
+              socket.id
+                ? 'You'
+                : 'Participant',
+          })
+        )
+      );
+
+      console.log(
+        `🚪 ${socket.id} joined room: ${roomId}`
       );
     }
   );
 
   /*
-  |--------------------------------------------------------------------------
-  | CHAT
-  |--------------------------------------------------------------------------
-  */
+   * WEBRTC OFFER
+   */
+
+  socket.on(
+    'webrtc-offer',
+    ({
+      to,
+      offer,
+      roomId,
+    }) => {
+      if (
+        !to ||
+        !offer ||
+        !roomId
+      ) {
+        return;
+      }
+
+      io.to(to).emit(
+        'webrtc-offer',
+        {
+          from: socket.id,
+          offer,
+        }
+      );
+    }
+  );
+
+  /*
+   * WEBRTC ANSWER
+   */
+
+  socket.on(
+    'webrtc-answer',
+    ({
+      to,
+      answer,
+      roomId,
+    }) => {
+      if (
+        !to ||
+        !answer ||
+        !roomId
+      ) {
+        return;
+      }
+
+      io.to(to).emit(
+        'webrtc-answer',
+        {
+          from: socket.id,
+          answer,
+        }
+      );
+    }
+  );
+
+  /*
+   * ICE CANDIDATE
+   */
+
+  socket.on(
+    'webrtc-ice-candidate',
+    ({
+      to,
+      candidate,
+      roomId,
+    }) => {
+      if (
+        !to ||
+        !candidate ||
+        !roomId
+      ) {
+        return;
+      }
+
+      io.to(to).emit(
+        'webrtc-ice-candidate',
+        {
+          from: socket.id,
+          candidate,
+        }
+      );
+    }
+  );
+
+  /*
+   * CHAT
+   */
 
   socket.on(
     'send-message',
@@ -177,16 +216,19 @@ io.on('connection', (socket) => {
 
       io.to(data.roomId).emit(
         'receive-message',
-        data
+        {
+          ...data,
+          senderId:
+            data.senderId ||
+            socket.id,
+        }
       );
     }
   );
 
   /*
-  |--------------------------------------------------------------------------
-  | WHITEBOARD
-  |--------------------------------------------------------------------------
-  */
+   * WHITEBOARD
+   */
 
   socket.on(
     'draw-stroke',
@@ -205,139 +247,105 @@ io.on('connection', (socket) => {
   );
 
   /*
-  |--------------------------------------------------------------------------
-  | WEBRTC OFFER
-  |--------------------------------------------------------------------------
-  */
+   * LEAVE ROOM
+   */
 
   socket.on(
-    'webrtc-offer',
-    ({
-      to,
-      offer,
-      roomId,
-    } = {}) => {
-      if (!to || !offer) {
+    'leave-room',
+    (roomId) => {
+      const actualRoomId =
+        roomId ||
+        socket.data.roomId;
+
+      if (!actualRoomId) {
         return;
       }
 
-      io.to(to).emit(
-        'webrtc-offer',
-        {
-          from: socket.id,
-          offer,
-          roomId,
-        }
+      socket.leave(
+        actualRoomId
       );
-    }
-  );
 
-  /*
-  |--------------------------------------------------------------------------
-  | WEBRTC ANSWER
-  |--------------------------------------------------------------------------
-  */
+      socket
+        .to(actualRoomId)
+        .emit(
+          'user-left',
+          socket.id
+        );
 
-  socket.on(
-    'webrtc-answer',
-    ({
-      to,
-      answer,
-      roomId,
-    } = {}) => {
-      if (!to || !answer) {
-        return;
-      }
+      const room =
+        io.sockets.adapter.rooms.get(
+          actualRoomId
+        );
 
-      io.to(to).emit(
-        'webrtc-answer',
-        {
-          from: socket.id,
-          answer,
-          roomId,
-        }
+      const users = room
+        ? Array.from(room)
+        : [];
+
+      io.to(actualRoomId).emit(
+        'room-participants',
+        users.map(
+          (socketId) => ({
+            socketId,
+            name:
+              'Participant',
+          })
+        )
       );
-    }
-  );
 
-  /*
-  |--------------------------------------------------------------------------
-  | WEBRTC ICE CANDIDATE
-  |--------------------------------------------------------------------------
-  */
+      socket.data.roomId =
+        null;
 
-  socket.on(
-    'webrtc-ice-candidate',
-    ({
-      to,
-      candidate,
-      roomId,
-    } = {}) => {
-      if (!to || !candidate) {
-        return;
-      }
-
-      io.to(to).emit(
-        'webrtc-ice-candidate',
-        {
-          from: socket.id,
-          candidate,
-          roomId,
-        }
-      );
-    }
-  );
-
-  /*
-  |--------------------------------------------------------------------------
-  | DISCONNECT
-  |--------------------------------------------------------------------------
-  */
-
-  socket.on(
-    'disconnecting',
-    () => {
       console.log(
-        `User disconnecting: ${socket.id}`
+        `🚪 ${socket.id} left room: ${actualRoomId}`
       );
+    }
+  );
 
-      /*
-       * socket.rooms mein socket.id ke ilawa
-       * joined rooms hoti hain.
-       */
-      const rooms = Array.from(
-        socket.rooms
-      ).filter(
-        (roomId) =>
-          roomId !== socket.id
-      );
+  /*
+   * DISCONNECT
+   */
 
-      rooms.forEach((roomId) => {
+  socket.on(
+    'disconnect',
+    () => {
+      const roomId =
+        socket.data.roomId;
+
+      if (roomId) {
         socket
           .to(roomId)
           .emit(
             'user-left',
             socket.id
           );
-      });
-    }
-  );
 
-  socket.on(
-    'disconnect',
-    () => {
+        const room =
+          io.sockets.adapter.rooms.get(
+            roomId
+          );
+
+        const users = room
+          ? Array.from(room)
+          : [];
+
+        io.to(roomId).emit(
+          'room-participants',
+          users.map(
+            (socketId) => ({
+              socketId,
+              name:
+                'Participant',
+            })
+          )
+        );
+      }
+
       console.log(
-        `User disconnected: ${socket.id}`
+        `🔌 User disconnected: ${socket.id}`
       );
     }
   );
 });
-
-/*
-|--------------------------------------------------------------------------
-| SERVER
-|--------------------------------------------------------------------------
-*/
 
 const PORT =
   process.env.PORT || 5000;
@@ -347,7 +355,7 @@ server.listen(
   '0.0.0.0',
   () => {
     console.log(
-      `Server running on port ${PORT}`
+      `🚀 Server running on port ${PORT}`
     );
   }
 );
