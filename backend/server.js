@@ -10,9 +10,17 @@ connectDB();
 
 const server = http.createServer(app);
 
+/*
+|--------------------------------------------------------------------------
+| CORS
+|--------------------------------------------------------------------------
+*/
+
 const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:3000',
+
+  // Vercel frontend
   'https://real-communication-codealpha-task.vercel.app',
 ];
 
@@ -22,222 +30,144 @@ const io = new Server(server, {
     methods: ['GET', 'POST'],
     credentials: true,
   },
-  transports: ['polling', 'websocket'],
 });
 
+/*
+|--------------------------------------------------------------------------
+| SOCKET CONNECTION
+|--------------------------------------------------------------------------
+*/
+
 io.on('connection', (socket) => {
-  console.log(
-    `User connected: ${socket.id}`
-  );
+  console.log(`User connected: ${socket.id}`);
 
   /*
-   * JOIN ROOM
-   */
+  |--------------------------------------------------------------------------
+  | JOIN ROOM
+  |--------------------------------------------------------------------------
+  */
+
+  socket.on('join-room', (roomId, userId) => {
+    if (!roomId) {
+      return;
+    }
+
+    /*
+     * Agar frontend userId nahi bhej raha
+     * to socket.id use hoga.
+     */
+    const currentUserId =
+      userId || socket.id;
+
+    socket.join(roomId);
+
+    console.log(
+      `User ${currentUserId} joined room ${roomId}`
+    );
+
+    /*
+     * Existing users ko batana:
+     * ek new user room mein aya hai.
+     */
+    socket
+      .to(roomId)
+      .emit(
+        'user-joined',
+        socket.id
+      );
+
+    /*
+     * Room ke existing users.
+     */
+    const room =
+      io.sockets.adapter.rooms.get(roomId);
+
+    const users = room
+      ? Array.from(room)
+      : [];
+
+    /*
+     * Frontend useWebRTC.js
+     * "room-users" listen karta hai.
+     */
+    socket.emit(
+      'room-users',
+      users.filter(
+        (id) => id !== socket.id
+      )
+    );
+
+    /*
+     * Participant list ke liye.
+     */
+    io.to(roomId).emit(
+      'room-participants',
+      users.map((socketId) => ({
+        socketId,
+        name:
+          socketId === socket.id
+            ? currentUserId
+            : 'Participant',
+      }))
+    );
+  });
+
+  /*
+  |--------------------------------------------------------------------------
+  | LEAVE ROOM
+  |--------------------------------------------------------------------------
+  */
+
   socket.on(
-    'join-room',
-    (roomId) => {
-      if (!roomId) return;
+    'leave-room',
+    ({ roomId, userId } = {}) => {
+      if (!roomId) {
+        return;
+      }
 
-      socket.data.roomId = roomId;
+      socket.leave(roomId);
 
-      socket.join(roomId);
-
-      const room =
-        io.sockets.adapter.rooms.get(
-          roomId
-        );
-
-      const existingUsers = room
-        ? Array.from(room).filter(
-            (id) => id !== socket.id
-          )
-        : [];
-
-      /*
-       * Send existing users
-       * ONLY to new user.
-       */
-      socket.emit(
-        'room-users',
-        existingUsers
+      console.log(
+        `User ${userId || socket.id} left room ${roomId}`
       );
 
       /*
-       * Tell existing users
-       * that someone joined.
+       * Frontend useWebRTC.js
+       * "user-left" listen karta hai.
        */
       socket
         .to(roomId)
-        .emit(
-          'user-joined',
-          socket.id
-        );
-
-      /*
-       * Participant list
-       */
-      const users = room
-        ? Array.from(room)
-        : [socket.id];
-
-      io.to(roomId).emit(
-        'room-participants',
-        users.map(
-          (socketId) => ({
-            socketId,
-            name:
-              socketId === socket.id
-                ? 'You'
-                : 'Participant',
-          })
-        )
-      );
-
-      console.log(
-        `Socket ${socket.id} joined room ${roomId}`
-      );
-    }
-  );
-
-  /*
-   * WEBRTC OFFER
-   */
-  socket.on(
-    'webrtc-offer',
-    ({
-      to,
-      offer,
-      roomId,
-    }) => {
-      if (
-        !to ||
-        !offer ||
-        !roomId
-      ) {
-        return;
-      }
-
-      io.to(to).emit(
-        'webrtc-offer',
-        {
-          from: socket.id,
-          offer,
-        }
-      );
-    }
-  );
-
-  /*
-   * WEBRTC ANSWER
-   */
-  socket.on(
-    'webrtc-answer',
-    ({
-      to,
-      answer,
-      roomId,
-    }) => {
-      if (
-        !to ||
-        !answer ||
-        !roomId
-      ) {
-        return;
-      }
-
-      io.to(to).emit(
-        'webrtc-answer',
-        {
-          from: socket.id,
-          answer,
-        }
-      );
-    }
-  );
-
-  /*
-   * ICE CANDIDATE
-   */
-  socket.on(
-    'webrtc-ice-candidate',
-    ({
-      to,
-      candidate,
-      roomId,
-    }) => {
-      if (
-        !to ||
-        !candidate ||
-        !roomId
-      ) {
-        return;
-      }
-
-      io.to(to).emit(
-        'webrtc-ice-candidate',
-        {
-          from: socket.id,
-          candidate,
-        }
-      );
-    }
-  );
-
-  /*
-   * LEAVE ROOM
-   */
-  socket.on(
-    'leave-room',
-    (roomId) => {
-      const actualRoomId =
-        roomId ||
-        socket.data.roomId;
-
-      if (!actualRoomId) {
-        return;
-      }
-
-      socket.leave(
-        actualRoomId
-      );
-
-      socket
-        .to(actualRoomId)
         .emit(
           'user-left',
           socket.id
         );
 
+      /*
+       * Updated participant list
+       */
       const room =
-        io.sockets.adapter.rooms.get(
-          actualRoomId
-        );
+        io.sockets.adapter.rooms.get(roomId);
 
       const users = room
         ? Array.from(room)
         : [];
 
-      io.to(actualRoomId).emit(
+      io.to(roomId).emit(
         'room-participants',
-        users.map(
-          (socketId) => ({
-            socketId,
-            name:
-              socketId === socket.id
-                ? 'You'
-                : 'Participant',
-          })
-        )
+        users.map((socketId) => ({
+          socketId,
+          name: 'Participant',
+        }))
       );
-
-      socket.data.roomId =
-        null;
     }
   );
 
   /*
-   * CHAT
-   */
+  |--------------------------------------------------------------------------
+  | CHAT
+  |--------------------------------------------------------------------------
+  */
+
   socket.on(
     'send-message',
     (data) => {
@@ -247,19 +177,17 @@ io.on('connection', (socket) => {
 
       io.to(data.roomId).emit(
         'receive-message',
-        {
-          ...data,
-          senderId:
-            data.senderId ||
-            socket.id,
-        }
+        data
       );
     }
   );
 
   /*
-   * WHITEBOARD
-   */
+  |--------------------------------------------------------------------------
+  | WHITEBOARD
+  |--------------------------------------------------------------------------
+  */
+
   socket.on(
     'draw-stroke',
     (data) => {
@@ -277,48 +205,139 @@ io.on('connection', (socket) => {
   );
 
   /*
-   * DISCONNECT
-   */
-  socket.on(
-    'disconnect',
-    () => {
-      const roomId =
-        socket.data.roomId;
+  |--------------------------------------------------------------------------
+  | WEBRTC OFFER
+  |--------------------------------------------------------------------------
+  */
 
-      if (roomId) {
+  socket.on(
+    'webrtc-offer',
+    ({
+      to,
+      offer,
+      roomId,
+    } = {}) => {
+      if (!to || !offer) {
+        return;
+      }
+
+      io.to(to).emit(
+        'webrtc-offer',
+        {
+          from: socket.id,
+          offer,
+          roomId,
+        }
+      );
+    }
+  );
+
+  /*
+  |--------------------------------------------------------------------------
+  | WEBRTC ANSWER
+  |--------------------------------------------------------------------------
+  */
+
+  socket.on(
+    'webrtc-answer',
+    ({
+      to,
+      answer,
+      roomId,
+    } = {}) => {
+      if (!to || !answer) {
+        return;
+      }
+
+      io.to(to).emit(
+        'webrtc-answer',
+        {
+          from: socket.id,
+          answer,
+          roomId,
+        }
+      );
+    }
+  );
+
+  /*
+  |--------------------------------------------------------------------------
+  | WEBRTC ICE CANDIDATE
+  |--------------------------------------------------------------------------
+  */
+
+  socket.on(
+    'webrtc-ice-candidate',
+    ({
+      to,
+      candidate,
+      roomId,
+    } = {}) => {
+      if (!to || !candidate) {
+        return;
+      }
+
+      io.to(to).emit(
+        'webrtc-ice-candidate',
+        {
+          from: socket.id,
+          candidate,
+          roomId,
+        }
+      );
+    }
+  );
+
+  /*
+  |--------------------------------------------------------------------------
+  | DISCONNECT
+  |--------------------------------------------------------------------------
+  */
+
+  socket.on(
+    'disconnecting',
+    () => {
+      console.log(
+        `User disconnecting: ${socket.id}`
+      );
+
+      /*
+       * socket.rooms mein socket.id ke ilawa
+       * joined rooms hoti hain.
+       */
+      const rooms = Array.from(
+        socket.rooms
+      ).filter(
+        (roomId) =>
+          roomId !== socket.id
+      );
+
+      rooms.forEach((roomId) => {
         socket
           .to(roomId)
           .emit(
             'user-left',
             socket.id
           );
+      });
+    }
+  );
 
-        const room =
-          io.sockets.adapter.rooms.get(
-            roomId
-          );
-
-        const users = room
-          ? Array.from(room)
-          : [];
-
-        io.to(roomId).emit(
-          'room-participants',
-          users.map(
-            (socketId) => ({
-              socketId,
-              name: 'Participant',
-            })
-          )
-        );
-      }
-
+  socket.on(
+    'disconnect',
+    () => {
       console.log(
         `User disconnected: ${socket.id}`
       );
     }
   );
 });
+
+/*
+|--------------------------------------------------------------------------
+| SERVER
+|--------------------------------------------------------------------------
+*/
 
 const PORT =
   process.env.PORT || 5000;

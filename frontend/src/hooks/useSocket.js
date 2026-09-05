@@ -3,6 +3,7 @@ import { io } from 'socket.io-client';
 
 const SOCKET_URL =
   import.meta.env.VITE_SOCKET_URL ||
+  import.meta.env.VITE_API_URL ||
   'http://localhost:5000';
 
 export function useSocket() {
@@ -10,17 +11,27 @@ export function useSocket() {
 
   useEffect(() => {
     const newSocket = io(SOCKET_URL, {
-      transports: ['polling', 'websocket'],
+      transports: ['websocket', 'polling'],
       withCredentials: true,
-      reconnection: true,
-      reconnectionAttempts: Infinity,
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 5000,
+      autoConnect: true,
     });
 
     setSocket(newSocket);
 
+    newSocket.on('connect', () => {
+      console.log('Socket connected:', newSocket.id);
+    });
+
+    newSocket.on('connect_error', (error) => {
+      console.error('Socket connection error:', error);
+    });
+
+    newSocket.on('disconnect', (reason) => {
+      console.log('Socket disconnected:', reason);
+    });
+
     return () => {
+      newSocket.removeAllListeners();
       newSocket.disconnect();
     };
   }, []);
