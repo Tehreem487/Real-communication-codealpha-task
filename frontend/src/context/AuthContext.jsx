@@ -4,14 +4,8 @@ import React, {
   useState,
 } from 'react';
 
-import axios from 'axios';
-
 export const AuthContext =
   createContext(null);
-
-const API_URL =
-  import.meta.env.VITE_API_URL ||
-  'http://localhost:5000/api';
 
 export function AuthProvider({
   children,
@@ -24,100 +18,42 @@ export function AuthProvider({
 
   /*
    * -----------------------------------------
-   * RESTORE LOGIN AFTER REFRESH
+   * RESTORE LOGIN SESSION
    * -----------------------------------------
    */
   useEffect(() => {
-    const restoreUser = async () => {
-      try {
-        const token =
-          localStorage.getItem(
-            'token'
-          );
+    try {
+      const savedUser =
+        localStorage.getItem(
+          'userInfo'
+        );
 
-        const savedUser =
-          localStorage.getItem(
-            'user'
-          );
+      const isLoggedIn =
+        localStorage.getItem(
+          'isLoggedIn'
+        );
 
-        /*
-         * No token = not logged in
-         */
-        if (!token) {
-          setUser(null);
-          setLoading(false);
-          return;
-        }
+      if (
+        savedUser &&
+        isLoggedIn === 'true'
+      ) {
+        const parsedUser =
+          JSON.parse(savedUser);
 
-        /*
-         * If complete user data already
-         * exists, restore immediately.
-         */
-        if (savedUser) {
-          try {
-            const parsedUser =
-              JSON.parse(savedUser);
-
-            if (parsedUser) {
-              setUser(parsedUser);
-            }
-          } catch {
-            localStorage.removeItem(
-              'user'
-            );
-          }
-        }
-
-        /*
-         * Verify token with backend
-         * if your backend has /auth/me.
-         */
-        try {
-          const response =
-            await axios.get(
-              `${API_URL}/auth/me`,
-              {
-                headers: {
-                  Authorization:
-                    `Bearer ${token}`,
-                },
-              }
-            );
-
-          if (
-            response.data?.user
-          ) {
-            setUser(
-              response.data.user
-            );
-
-            localStorage.setItem(
-              'user',
-              JSON.stringify(
-                response.data.user
-              )
-            );
-          }
-        } catch (error) {
-          /*
-           * Don't immediately log the user
-           * out if the saved user exists.
-           *
-           * This also prevents a temporary
-           * network issue from destroying
-           * the local login session.
-           */
-          console.warn(
-            'User verification failed:',
-            error
-          );
-        }
-      } finally {
-        setLoading(false);
+        setUser(parsedUser);
+      } else {
+        setUser(null);
       }
-    };
+    } catch (error) {
+      console.error(
+        'Session restore error:',
+        error
+      );
 
-    restoreUser();
+      setUser(null);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   /*
@@ -126,41 +62,34 @@ export function AuthProvider({
    * -----------------------------------------
    */
   const login = (
-    token,
     userData
   ) => {
     localStorage.setItem(
-      'token',
-      token
-    );
-
-    localStorage.setItem(
-      'user',
+      'userInfo',
       JSON.stringify(userData)
     );
 
-    /*
-     * Compatibility with your existing
-     * project code.
-     */
+    localStorage.setItem(
+      'workspace_profile',
+      JSON.stringify(userData)
+    );
+
     localStorage.setItem(
       'isLoggedIn',
       'true'
     );
 
-    if (userData?.email) {
-      localStorage.setItem(
-        'userEmail',
-        userData.email
-      );
-    }
+    localStorage.setItem(
+      'userEmail',
+      userData?.email || ''
+    );
 
-    if (userData?.name) {
-      localStorage.setItem(
-        'userName',
-        userData.name
-      );
-    }
+    localStorage.setItem(
+      'userName',
+      userData?.name ||
+        userData?.username ||
+        'User'
+    );
 
     setUser(userData);
   };
@@ -172,11 +101,11 @@ export function AuthProvider({
    */
   const logout = () => {
     localStorage.removeItem(
-      'token'
+      'userInfo'
     );
 
     localStorage.removeItem(
-      'user'
+      'workspace_profile'
     );
 
     localStorage.removeItem(
@@ -191,32 +120,17 @@ export function AuthProvider({
       'userName'
     );
 
+    localStorage.removeItem(
+      'token'
+    );
+
     setUser(null);
   };
 
   /*
    * -----------------------------------------
-   * CONTEXT
+   * LOADING
    * -----------------------------------------
-   */
-  const value = {
-    user,
-    setUser,
-    login,
-    logout,
-    loading,
-    isAuthenticated:
-      Boolean(user) ||
-      Boolean(
-        localStorage.getItem(
-          'token'
-        )
-      ),
-  };
-
-  /*
-   * Don't show protected pages while
-   * login state is being restored.
    */
   if (loading) {
     return (
@@ -239,7 +153,15 @@ export function AuthProvider({
 
   return (
     <AuthContext.Provider
-      value={value}
+      value={{
+        user,
+        setUser,
+        login,
+        logout,
+        loading,
+        isAuthenticated:
+          Boolean(user),
+      }}
     >
       {children}
     </AuthContext.Provider>

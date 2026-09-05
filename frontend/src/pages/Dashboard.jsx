@@ -37,26 +37,21 @@ export default function Dashboard() {
       return [
         {
           id: 1,
-          name:
-            'Design On Tech Agency',
-          category:
-            'Frontend Web',
+          name: 'Design On Tech Agency',
+          category: 'Frontend Web',
           status: 'Active',
           date: 'Aug 2026',
         },
         {
           id: 2,
-          name:
-            'Luxury E-Commerce App',
-          category:
-            'Full Stack',
+          name: 'Luxury E-Commerce App',
+          category: 'Full Stack',
           status: 'In Progress',
           date: 'Aug 2026',
         },
         {
           id: 3,
-          name:
-            'Taskora Dashboard',
+          name: 'Taskora Dashboard',
           category: 'React UI',
           status: 'Completed',
           date: 'Aug 2026',
@@ -137,9 +132,9 @@ export default function Dashboard() {
         JSON.parse(savedUser);
 
       if (parsed?.name) {
-        setUserName(
-          parsed.name
-        );
+        setUserName(parsed.name);
+      } else if (parsed?.username) {
+        setUserName(parsed.username);
       }
     } catch (error) {
       console.error(
@@ -153,9 +148,7 @@ export default function Dashboard() {
      CREATE PROJECT
   ========================= */
 
-  const handleCreateProject = (
-    e
-  ) => {
+  const handleCreateProject = (e) => {
     e.preventDefault();
 
     if (!newProjectName.trim()) {
@@ -187,9 +180,7 @@ export default function Dashboard() {
 
     setNewProjectName('');
     setNewProjectCategory('');
-    setIsProjectModalOpen(
-      false
-    );
+    setIsProjectModalOpen(false);
   };
 
   /* =========================
@@ -201,9 +192,7 @@ export default function Dashboard() {
     setUnreadCount(0);
   };
 
-  const handleSendMessage = (
-    e
-  ) => {
+  const handleSendMessage = (e) => {
     e.preventDefault();
 
     if (!newMessage.trim()) {
@@ -237,19 +226,99 @@ export default function Dashboard() {
     setIsRoomModalOpen(true);
   };
 
+  /*
+   * Create a guaranteed unique room ID.
+   *
+   * This function is also available here
+   * as a fallback if the room modal doesn't
+   * provide one.
+   */
+  const generateRoomId = () => {
+    return Math.random()
+      .toString(36)
+      .substring(2, 8)
+      .toUpperCase();
+  };
+
+  /*
+   * Open room directly.
+   *
+   * The important part is:
+   *
+   * /room/ROOM_ID
+   *
+   * NOT:
+   *
+   * /meeting
+   */
+  const openGeneratedRoom = (
+    defaultTab = 'video'
+  ) => {
+    const roomId =
+      generateRoomId();
+
+    setIsRoomModalOpen(false);
+
+    navigate(
+      `/room/${roomId}`,
+      {
+        state: {
+          roomId,
+          defaultTab,
+          roomName:
+            `Meeting ${roomId}`,
+        },
+      }
+    );
+  };
+
+  /* =========================
+     LOGOUT
+  ========================= */
+
+  const handleLogout = () => {
+    localStorage.removeItem(
+      'userInfo'
+    );
+
+    localStorage.removeItem(
+      'workspace_profile'
+    );
+
+    localStorage.removeItem(
+      'isLoggedIn'
+    );
+
+    localStorage.removeItem(
+      'userEmail'
+    );
+
+    localStorage.removeItem(
+      'userName'
+    );
+
+    localStorage.removeItem(
+      'token'
+    );
+
+    navigate('/login', {
+      replace: true,
+    });
+  };
+
   return (
     <div
       style={{
         minHeight: '100vh',
         background: '#0a0a0a',
         color: '#fff',
-        padding:
-          '30px 40px',
+        padding: '30px 40px',
         fontFamily:
           'system-ui, sans-serif',
         boxSizing: 'border-box',
       }}
     >
+
       {/* NAVBAR */}
 
       <div
@@ -275,10 +344,8 @@ export default function Dashboard() {
             style={{
               width: '12px',
               height: '12px',
-              background:
-                '#ff6600',
-              borderRadius:
-                '50%',
+              background: '#ff6600',
+              borderRadius: '50%',
               boxShadow:
                 '0 0 10px #ff6600',
             }}
@@ -288,13 +355,11 @@ export default function Dashboard() {
             style={{
               margin: 0,
               color: '#fff',
-              fontSize:
-                '1.4rem',
+              fontSize: '1.4rem',
               fontWeight: '700',
             }}
           >
-            Workspace
-            Dashboard
+            Workspace Dashboard
           </h2>
         </div>
 
@@ -308,18 +373,13 @@ export default function Dashboard() {
             to="/profile"
             style={{
               color: '#fff',
-              textDecoration:
-                'none',
-              background:
-                '#161616',
-              padding:
-                '8px 18px',
-              borderRadius:
-                '8px',
+              textDecoration: 'none',
+              background: '#161616',
+              padding: '8px 18px',
+              borderRadius: '8px',
               border:
                 '1px solid #262626',
-              fontSize:
-                '0.9rem',
+              fontSize: '0.9rem',
               fontWeight: '500',
             }}
           >
@@ -327,23 +387,15 @@ export default function Dashboard() {
           </Link>
 
           <button
-            onClick={() =>
-              navigate(
-                '/login'
-              )
-            }
+            onClick={handleLogout}
             style={{
-              background:
-                '#161616',
+              background: '#161616',
               color: '#ef4444',
               border:
                 '1px solid #262626',
-              padding:
-                '8px 18px',
-              borderRadius:
-                '8px',
-              cursor:
-                'pointer',
+              padding: '8px 18px',
+              borderRadius: '8px',
+              cursor: 'pointer',
               fontWeight: '500',
             }}
           >
@@ -360,25 +412,20 @@ export default function Dashboard() {
             'linear-gradient(135deg, #141414 0%, #1a1a1a 100%)',
           border:
             '1px solid #262626',
-          padding:
-            '30px 35px',
-          borderRadius:
-            '16px',
+          padding: '30px 35px',
+          borderRadius: '16px',
           display: 'flex',
           justifyContent:
             'space-between',
           alignItems: 'center',
-          marginBottom:
-            '30px',
+          marginBottom: '30px',
         }}
       >
         <div>
           <h1
             style={{
-              margin:
-                '0 0 8px',
-              fontSize:
-                '2rem',
+              margin: '0 0 8px',
+              fontSize: '2rem',
             }}
           >
             Welcome Back,{' '}
@@ -388,23 +435,18 @@ export default function Dashboard() {
           <p
             style={{
               margin: 0,
-              color:
-                '#9ca3af',
+              color: '#9ca3af',
             }}
           >
-            Here is your
-            comprehensive
-            workspace overview
-            and active projects
-            control center.
+            Here is your comprehensive
+            workspace overview and active
+            projects control center.
           </p>
         </div>
 
         <button
           onClick={() =>
-            setIsProjectModalOpen(
-              true
-            )
+            setIsProjectModalOpen(true)
           }
           style={orangeButton}
         >
@@ -420,11 +462,9 @@ export default function Dashboard() {
           gridTemplateColumns:
             'repeat(auto-fit, minmax(280px, 1fr))',
           gap: '20px',
-          marginBottom:
-            '40px',
+          marginBottom: '40px',
         }}
       >
-        {/* MEETING */}
 
         <ActionCard
           title="Active Meetings"
@@ -434,8 +474,6 @@ export default function Dashboard() {
           onClick={openMeeting}
         />
 
-        {/* WHITEBOARD */}
-
         <ActionCard
           title="Whiteboard Canvas"
           badge="3 Active"
@@ -443,8 +481,6 @@ export default function Dashboard() {
           action="Open Canvas →"
           onClick={openWhiteboard}
         />
-
-        {/* CHAT */}
 
         <ActionCard
           title="Team Channels"
@@ -455,10 +491,9 @@ export default function Dashboard() {
           }
           description="Stay connected with developers and share resource snippets."
           action="Open Channel →"
-          onClick={
-            handleOpenChannel
-          }
+          onClick={handleOpenChannel}
         />
+
       </div>
 
       {/* PROJECTS */}
@@ -468,8 +503,7 @@ export default function Dashboard() {
           background: '#141414',
           border:
             '1px solid #262626',
-          borderRadius:
-            '16px',
+          borderRadius: '16px',
           padding: '25px',
         }}
       >
@@ -479,8 +513,7 @@ export default function Dashboard() {
             justifyContent:
               'space-between',
             alignItems: 'center',
-            marginBottom:
-              '20px',
+            marginBottom: '20px',
           }}
         >
           <h3
@@ -488,29 +521,24 @@ export default function Dashboard() {
               margin: 0,
             }}
           >
-            Your Workspace
-            Projects (
+            Your Workspace Projects (
             {projects.length})
           </h3>
 
           <span
             style={{
-              color:
-                '#9ca3af',
-              fontSize:
-                '0.85rem',
+              color: '#9ca3af',
+              fontSize: '0.85rem',
             }}
           >
-            Manage and track
-            progress
+            Manage and track progress
           </span>
         </div>
 
         <div
           style={{
             display: 'flex',
-            flexDirection:
-              'column',
+            flexDirection: 'column',
             gap: '12px',
           }}
         >
@@ -519,20 +547,16 @@ export default function Dashboard() {
               <div
                 key={project.id}
                 style={{
-                  display:
-                    'flex',
+                  display: 'flex',
                   justifyContent:
                     'space-between',
-                  alignItems:
-                    'center',
-                  background:
-                    '#1a1a1a',
+                  alignItems: 'center',
+                  background: '#1a1a1a',
                   border:
                     '1px solid #222',
                   padding:
                     '16px 20px',
-                  borderRadius:
-                    '10px',
+                  borderRadius: '10px',
                 }}
               >
                 <div>
@@ -542,9 +566,7 @@ export default function Dashboard() {
                         '0 0 4px',
                     }}
                   >
-                    {
-                      project.name
-                    }
+                    {project.name}
                   </h4>
 
                   <span
@@ -556,13 +578,9 @@ export default function Dashboard() {
                     }}
                   >
                     Category:{' '}
-                    {
-                      project.category
-                    }{' '}
+                    {project.category}{' '}
                     • Created:{' '}
-                    {
-                      project.date
-                    }
+                    {project.date}
                   </span>
                 </div>
 
@@ -578,9 +596,7 @@ export default function Dashboard() {
                       '6px',
                   }}
                 >
-                  {
-                    project.status
-                  }
+                  {project.status}
                 </span>
               </div>
             )
@@ -682,6 +698,37 @@ export default function Dashboard() {
             )
           }
           defaultTab="video"
+
+          /*
+           * If CreateRoomModal supports
+           * onCreateRoom, it will use the
+           * proper /room/:roomId route.
+           */
+          onCreateRoom={(
+            roomId,
+            roomName,
+            defaultTab = 'video'
+          ) => {
+            const finalRoomId =
+              roomId ||
+              generateRoomId();
+
+            setIsRoomModalOpen(false);
+
+            navigate(
+              `/room/${finalRoomId}`,
+              {
+                state: {
+                  roomId:
+                    finalRoomId,
+                  roomName:
+                    roomName ||
+                    `Meeting ${finalRoomId}`,
+                  defaultTab,
+                },
+              }
+            );
+          }}
         />
       )}
 
@@ -693,20 +740,16 @@ export default function Dashboard() {
             style={{
               ...modalStyle,
               width: '90%',
-              maxWidth:
-                '500px',
-              height:
-                '450px',
-              display:
-                'flex',
+              maxWidth: '500px',
+              height: '450px',
+              display: 'flex',
               flexDirection:
                 'column',
             }}
           >
             <div
               style={{
-                display:
-                  'flex',
+                display: 'flex',
                 justifyContent:
                   'space-between',
               }}
@@ -732,10 +775,8 @@ export default function Dashboard() {
             <div
               style={{
                 flex: 1,
-                overflowY:
-                  'auto',
-                margin:
-                  '15px 0',
+                overflowY: 'auto',
+                margin: '15px 0',
               }}
             >
               {channelMessages.map(
@@ -745,8 +786,7 @@ export default function Dashboard() {
                     style={{
                       background:
                         '#1f1f1f',
-                      padding:
-                        '10px',
+                      padding: '10px',
                       borderRadius:
                         '8px',
                       marginBottom:
@@ -786,15 +826,12 @@ export default function Dashboard() {
                 handleSendMessage
               }
               style={{
-                display:
-                  'flex',
+                display: 'flex',
                 gap: '8px',
               }}
             >
               <input
-                value={
-                  newMessage
-                }
+                value={newMessage}
                 onChange={(e) =>
                   setNewMessage(
                     e.target.value
@@ -809,9 +846,7 @@ export default function Dashboard() {
 
               <button
                 type="submit"
-                style={
-                  orangeButton
-                }
+                style={orangeButton}
               >
                 Send
               </button>
@@ -838,27 +873,21 @@ function ActionCard({
     <div
       onClick={onClick}
       style={{
-        background:
-          '#141414',
+        background: '#141414',
         border:
           '1px solid #262626',
         padding: '24px',
-        borderRadius:
-          '14px',
-        cursor:
-          'pointer',
-        minHeight:
-          '150px',
+        borderRadius: '14px',
+        cursor: 'pointer',
+        minHeight: '150px',
       }}
     >
       <div
         style={{
-          display:
-            'flex',
+          display: 'flex',
           justifyContent:
             'space-between',
-          marginBottom:
-            '12px',
+          marginBottom: '12px',
         }}
       >
         <h3
@@ -871,16 +900,12 @@ function ActionCard({
 
         <span
           style={{
-            color:
-              '#10b981',
+            color: '#10b981',
             background:
               'rgba(16,185,129,0.1)',
-            padding:
-              '4px 10px',
-            borderRadius:
-              '20px',
-            fontSize:
-              '0.75rem',
+            padding: '4px 10px',
+            borderRadius: '20px',
+            fontSize: '0.75rem',
           }}
         >
           {badge}
@@ -889,12 +914,9 @@ function ActionCard({
 
       <p
         style={{
-          color:
-            '#9ca3af',
-          fontSize:
-            '0.85rem',
-          lineHeight:
-            '1.4',
+          color: '#9ca3af',
+          fontSize: '0.85rem',
+          lineHeight: '1.4',
         }}
       >
         {description}
@@ -902,10 +924,8 @@ function ActionCard({
 
       <span
         style={{
-          color:
-            '#ff6600',
-          fontWeight:
-            '700',
+          color: '#ff6600',
+          fontWeight: '700',
         }}
       >
         {action}
@@ -920,19 +940,15 @@ function Overlay({
   return (
     <div
       style={{
-        position:
-          'fixed',
+        position: 'fixed',
         inset: 0,
         background:
           'rgba(0,0,0,0.75)',
         backdropFilter:
           'blur(5px)',
-        display:
-          'flex',
-        alignItems:
-          'center',
-        justifyContent:
-          'center',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
         zIndex: 1000,
       }}
     >
@@ -943,61 +959,41 @@ function Overlay({
 
 const modalStyle = {
   background: '#161616',
-  border:
-    '1px solid #333',
+  border: '1px solid #333',
   padding: '25px',
-  borderRadius:
-    '16px',
+  borderRadius: '16px',
   width: '90%',
-  maxWidth:
-    '400px',
-  boxSizing:
-    'border-box',
+  maxWidth: '400px',
+  boxSizing: 'border-box',
 };
 
 const inputStyle = {
   width: '100%',
-  boxSizing:
-    'border-box',
-  background:
-    '#222',
-  border:
-    '1px solid #333',
+  boxSizing: 'border-box',
+  background: '#222',
+  border: '1px solid #333',
   color: '#fff',
-  padding:
-    '11px 14px',
-  borderRadius:
-    '8px',
-  marginBottom:
-    '12px',
+  padding: '11px 14px',
+  borderRadius: '8px',
+  marginBottom: '12px',
   outline: 'none',
 };
 
 const orangeButton = {
-  background:
-    '#ff6600',
+  background: '#ff6600',
   color: '#000',
   border: 'none',
-  padding:
-    '11px 20px',
-  borderRadius:
-    '8px',
-  fontWeight:
-    '700',
-  cursor:
-    'pointer',
+  padding: '11px 20px',
+  borderRadius: '8px',
+  fontWeight: '700',
+  cursor: 'pointer',
 };
 
 const darkButton = {
-  background:
-    '#222',
+  background: '#222',
   color: '#fff',
-  border:
-    '1px solid #333',
-  padding:
-    '10px 15px',
-  borderRadius:
-    '8px',
-  cursor:
-    'pointer',
+  border: '1px solid #333',
+  padding: '10px 15px',
+  borderRadius: '8px',
+  cursor: 'pointer',
 };

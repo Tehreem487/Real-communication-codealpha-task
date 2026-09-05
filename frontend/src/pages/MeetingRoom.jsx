@@ -19,8 +19,6 @@ import ChatPanel from '../components/chat/ChatPanel';
 import Whiteboard from '../components/whiteboard/Whiteboard';
 import { ScreenShare } from '../components/screenShare/ScreenShare';
 
-import { copyMeetingLink } from '../utils/helpers';
-
 export default function MeetingRoom() {
   const {
     roomId: urlRoomId,
@@ -35,6 +33,16 @@ export default function MeetingRoom() {
    * -----------------------------------------
    * ROOM ID
    * -----------------------------------------
+   *
+   * Main source is:
+   *
+   * /room/:roomId
+   *
+   * Example:
+   * /room/GMBBJJ
+   *
+   * This means when someone opens the same
+   * URL, they enter the same room.
    */
 
   const roomId =
@@ -100,27 +108,41 @@ export default function MeetingRoom() {
   const [copied, setCopied] =
     useState(false);
 
-  const [showChatMobile, setShowChatMobile] =
-    useState(false);
+  const [
+    showChatMobile,
+    setShowChatMobile,
+  ] = useState(false);
 
-  const [participants, setParticipants] =
-    useState([]);
+  const [
+    participants,
+    setParticipants,
+  ] = useState([]);
 
   const myVideoRef = useRef(null);
+
+  /*
+   * Prevent duplicate leave events
+   */
+
+  const hasLeftRef = useRef(false);
 
   /*
    * -----------------------------------------
    * WEBRTC
    * -----------------------------------------
+   *
+   * IMPORTANT:
+   * Same socket instance is passed to
+   * useWebRTC.
    */
 
   const {
-  peers,
-} = useWebRTC(
-  roomId,
-  stream,
-  socket
-);
+    peers,
+  } = useWebRTC(
+    roomId,
+    stream,
+    socket
+  );
 
   /*
    * -----------------------------------------
@@ -135,9 +157,8 @@ export default function MeetingRoom() {
       async () => {
         try {
           /*
-           * IMPORTANT:
            * If camera was OFF before refresh,
-           * DO NOT request camera.
+           * don't request camera.
            */
 
           const constraints = {
@@ -161,7 +182,7 @@ export default function MeetingRoom() {
           }
 
           /*
-           * Apply saved mute state
+           * Apply saved microphone state
            */
 
           userStream
@@ -172,7 +193,7 @@ export default function MeetingRoom() {
             });
 
           /*
-           * Apply camera state
+           * Apply saved camera state
            */
 
           userStream
@@ -183,6 +204,10 @@ export default function MeetingRoom() {
             });
 
           setStream(userStream);
+
+          /*
+           * Attach local video
+           */
 
           if (myVideoRef.current) {
             myVideoRef.current.srcObject =
@@ -195,8 +220,8 @@ export default function MeetingRoom() {
           );
 
           /*
-           * If user blocked camera,
-           * try microphone only.
+           * If camera permission fails,
+           * continue with microphone only.
            */
 
           if (!isVideoOff) {
@@ -228,6 +253,10 @@ export default function MeetingRoom() {
                   }
                 );
 
+              /*
+               * Camera is now considered OFF
+               */
+
               setIsVideoOff(true);
 
               localStorage.setItem(
@@ -238,6 +267,13 @@ export default function MeetingRoom() {
               setStream(
                 audioOnlyStream
               );
+
+              if (
+                myVideoRef.current
+              ) {
+                myVideoRef.current.srcObject =
+                  audioOnlyStream;
+              }
             } catch (
               audioError
             ) {
@@ -259,15 +295,15 @@ export default function MeetingRoom() {
     };
 
     /*
-     * We intentionally start media once
-     * when room opens.
+     * Media starts once when room opens.
      */
+
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomId]);
 
   /*
    * -----------------------------------------
-   * ATTACH VIDEO
+   * ATTACH LOCAL VIDEO
    * -----------------------------------------
    */
 
@@ -278,6 +314,15 @@ export default function MeetingRoom() {
     ) {
       myVideoRef.current.srcObject =
         stream;
+
+      /*
+       * Make sure local video starts
+       * automatically.
+       */
+
+      myVideoRef.current
+        .play()
+        .catch(() => {});
     }
   }, [stream]);
 
@@ -288,14 +333,19 @@ export default function MeetingRoom() {
    */
 
   useEffect(() => {
-    if (!socket || !roomId) return;
+    if (!socket || !roomId) {
+      return;
+    }
 
     const handleParticipants =
       (users) => {
-        setParticipants(
+        const safeUsers =
           Array.isArray(users)
             ? users
-            : []
+            : [];
+
+        setParticipants(
+          safeUsers
         );
       };
 
@@ -319,10 +369,17 @@ export default function MeetingRoom() {
    */
 
   useEffect(() => {
-    localStorage.setItem(
-      `meeting_camera_off_${roomId}`,
-      String(isVideoOff)
-    );
+    try {
+      localStorage.setItem(
+        `meeting_camera_off_${roomId}`,
+        String(isVideoOff)
+      );
+    } catch (error) {
+      console.error(
+        'Camera state save error:',
+        error
+      );
+    }
   }, [
     isVideoOff,
     roomId,
@@ -335,10 +392,17 @@ export default function MeetingRoom() {
    */
 
   useEffect(() => {
-    localStorage.setItem(
-      `meeting_muted_${roomId}`,
-      String(isMuted)
-    );
+    try {
+      localStorage.setItem(
+        `meeting_muted_${roomId}`,
+        String(isMuted)
+      );
+    } catch (error) {
+      console.error(
+        'Mic state save error:',
+        error
+      );
+    }
   }, [
     isMuted,
     roomId,
@@ -348,31 +412,125 @@ export default function MeetingRoom() {
    * -----------------------------------------
    * COPY ROOM LINK
    * -----------------------------------------
+   *
+   * IMPORTANT:
+   *
+   * Local:
+   * http://localhost:5173/room/GMBBJJ
+   *
+   * Production:
+   * https://real-communication-codealpha-task.vercel.app/room/GMBBJJ
+   *
+   * window.location.origin automatically
+   * picks the correct domain.
    */
 
   const handleCopyLink =
     async () => {
-      const success =
-        await copyMeetingLink(
-          roomId
+      try {
+        const meetingUrl =
+          `${window.location.origin}/room/${roomId}`;
+
+        await navigator.clipboard.writeText(
+          meetingUrl
         );
 
-      if (success) {
         setCopied(true);
 
         setTimeout(() => {
           setCopied(false);
         }, 2000);
+      } catch (error) {
+        console.error(
+          'Copy meeting link error:',
+          error
+        );
+
+        /*
+         * Fallback for browsers where
+         * clipboard API is unavailable.
+         */
+
+        try {
+          const textArea =
+            document.createElement(
+              'textarea'
+            );
+
+          textArea.value =
+            `${window.location.origin}/room/${roomId}`;
+
+          textArea.style.position =
+            'fixed';
+
+          textArea.style.opacity =
+            '0';
+
+          document.body.appendChild(
+            textArea
+          );
+
+          textArea.select();
+
+          document.execCommand(
+            'copy'
+          );
+
+          document.body.removeChild(
+            textArea
+          );
+
+          setCopied(true);
+
+          setTimeout(() => {
+            setCopied(false);
+          }, 2000);
+        } catch (
+          fallbackError
+        ) {
+          console.error(
+            'Clipboard fallback error:',
+            fallbackError
+          );
+        }
       }
     };
 
   /*
    * -----------------------------------------
-   * LEAVE
+   * LEAVE MEETING
    * -----------------------------------------
    */
 
   const handleLeave = () => {
+    /*
+     * Prevent duplicate leave
+     */
+
+    if (hasLeftRef.current) {
+      return;
+    }
+
+    hasLeftRef.current = true;
+
+    /*
+     * Notify server
+     */
+
+    if (socket) {
+      try {
+        socket.emit(
+          'leave-room',
+          roomId
+        );
+      } catch (error) {
+        console.error(
+          'Leave room error:',
+          error
+        );
+      }
+    }
+
     /*
      * Stop local media
      */
@@ -381,9 +539,15 @@ export default function MeetingRoom() {
       stream
         .getTracks()
         .forEach((track) => {
-          track.stop();
+          try {
+            track.stop();
+          } catch {}
         });
     }
+
+    /*
+     * Clear local video
+     */
 
     if (myVideoRef.current) {
       myVideoRef.current.srcObject =
@@ -393,21 +557,12 @@ export default function MeetingRoom() {
     setStream(null);
 
     /*
-     * Notify server
+     * Go back to dashboard
      */
 
-    if (socket) {
-      socket.emit(
-        'leave-room',
-        roomId
-      );
-    }
-
-    /*
-     * Go dashboard
-     */
-
-    navigate('/dashboard');
+    navigate('/dashboard', {
+      replace: true,
+    });
   };
 
   /*
@@ -419,6 +574,28 @@ export default function MeetingRoom() {
   const roomName =
     location.state?.roomName ||
     `Meeting ${roomId}`;
+
+  /*
+   * -----------------------------------------
+   * SAFE PEERS
+   * -----------------------------------------
+   */
+
+  const safePeers =
+    Array.isArray(peers)
+      ? peers
+      : [];
+
+  /*
+   * -----------------------------------------
+   * SAFE PARTICIPANTS
+   * -----------------------------------------
+   */
+
+  const safeParticipants =
+    Array.isArray(participants)
+      ? participants
+      : [];
 
   return (
     <div
@@ -437,7 +614,9 @@ export default function MeetingRoom() {
       }}
     >
 
-      {/* HEADER */}
+      {/* =====================================
+          HEADER
+      ====================================== */}
 
       <div
         style={{
@@ -445,10 +624,8 @@ export default function MeetingRoom() {
           justifyContent:
             'space-between',
           alignItems: 'center',
-          padding:
-            '8px 12px',
-          background:
-            '#121212',
+          padding: '8px 12px',
+          background: '#121212',
           borderBottom:
             '1px solid #222',
           flexShrink: 0,
@@ -461,8 +638,7 @@ export default function MeetingRoom() {
         <div
           style={{
             display: 'flex',
-            alignItems:
-              'center',
+            alignItems: 'center',
             gap: '10px',
             minWidth: 0,
           }}
@@ -471,13 +647,12 @@ export default function MeetingRoom() {
             style={{
               width: '8px',
               height: '8px',
-              background:
-                '#10b981',
-              borderRadius:
-                '50%',
-              display:
-                'inline-block',
+              background: '#10b981',
+              borderRadius: '50%',
+              display: 'inline-block',
               flexShrink: 0,
+              boxShadow:
+                '0 0 8px rgba(16,185,129,0.5)',
             }}
           />
 
@@ -486,8 +661,7 @@ export default function MeetingRoom() {
               color: '#fff',
               fontWeight: '700',
               fontSize: '13px',
-              overflow:
-                'hidden',
+              overflow: 'hidden',
               textOverflow:
                 'ellipsis',
               whiteSpace:
@@ -502,8 +676,7 @@ export default function MeetingRoom() {
               handleCopyLink
             }
             style={{
-              background:
-                '#1f1f1f',
+              background: '#1f1f1f',
               color: copied
                 ? '#10b981'
                 : '#ff6600',
@@ -511,16 +684,11 @@ export default function MeetingRoom() {
                 '1px solid #333',
               padding:
                 '5px 10px',
-              borderRadius:
-                '5px',
-              fontSize:
-                '11px',
-              cursor:
-                'pointer',
-              fontWeight:
-                '700',
-              whiteSpace:
-                'nowrap',
+              borderRadius: '5px',
+              fontSize: '11px',
+              cursor: 'pointer',
+              fontWeight: '700',
+              whiteSpace: 'nowrap',
             }}
           >
             {copied
@@ -535,15 +703,13 @@ export default function MeetingRoom() {
           style={{
             display: 'flex',
             gap: '5px',
-            overflowX:
-              'auto',
+            overflowX: 'auto',
+            scrollbarWidth: 'none',
           }}
         >
           <button
             onClick={() =>
-              setActiveTab(
-                'video'
-              )
+              setActiveTab('video')
             }
             style={tabStyle(
               activeTab ===
@@ -597,15 +763,16 @@ export default function MeetingRoom() {
         </div>
       </div>
 
-      {/* BODY */}
+      {/* =====================================
+          BODY
+      ====================================== */}
 
       <div
         style={{
           display: 'flex',
           flex: 1,
           overflow: 'hidden',
-          position:
-            'relative',
+          position: 'relative',
         }}
       >
 
@@ -617,30 +784,34 @@ export default function MeetingRoom() {
             display: 'flex',
             flexDirection:
               'column',
-            overflow:
-              'hidden',
+            overflow: 'hidden',
+            minWidth: 0,
           }}
         >
 
           <div
             style={{
               flex: 1,
-              overflowY:
-                'auto',
+              overflowY: 'auto',
               padding: '8px',
               boxSizing:
                 'border-box',
+              minHeight: 0,
             }}
           >
 
-            {/* VIDEO */}
+            {/* ===============================
+                VIDEO
+            ================================ */}
 
             {activeTab ===
               'video' && (
               <VideoGrid
-                peers={peers}
+                peers={
+                  safePeers
+                }
                 participants={
-                  participants
+                  safeParticipants
                 }
                 isVideoOff={
                   isVideoOff
@@ -657,7 +828,9 @@ export default function MeetingRoom() {
               />
             )}
 
-            {/* WHITEBOARD */}
+            {/* ===============================
+                WHITEBOARD
+            ================================ */}
 
             {activeTab ===
               'whiteboard' && (
@@ -667,16 +840,21 @@ export default function MeetingRoom() {
               />
             )}
 
-            {/* SCREEN SHARE */}
+            {/* ===============================
+                SCREEN SHARE
+            ================================ */}
 
             {activeTab ===
               'screenshare' && (
-              <ScreenShare />
+              <ScreenShare
+                stream={stream}
+              />
             )}
-
           </div>
 
-          {/* CONTROLS */}
+          {/* ===============================
+              CONTROLS
+          ================================ */}
 
           <MeetingControls
             roomId={roomId}
@@ -701,10 +879,11 @@ export default function MeetingRoom() {
               handleLeave
             }
           />
-
         </div>
 
-        {/* CHAT */}
+        {/* =================================
+            CHAT
+        ================================== */}
 
         {showChatMobile && (
           <div
@@ -727,6 +906,8 @@ export default function MeetingRoom() {
             }}
           >
 
+            {/* CHAT HEADER */}
+
             <div
               style={{
                 padding:
@@ -741,7 +922,6 @@ export default function MeetingRoom() {
                   'center',
               }}
             >
-
               <span
                 style={{
                   color: '#fff',
@@ -762,8 +942,7 @@ export default function MeetingRoom() {
                   background:
                     '#ff6600',
                   color: '#000',
-                  border:
-                    'none',
+                  border: 'none',
                   padding:
                     '4px 10px',
                   borderRadius:
@@ -776,8 +955,9 @@ export default function MeetingRoom() {
               >
                 Close
               </button>
-
             </div>
+
+            {/* CHAT */}
 
             <div
               style={{
@@ -791,19 +971,17 @@ export default function MeetingRoom() {
                 roomId={roomId}
               />
             </div>
-
           </div>
         )}
-
       </div>
     </div>
   );
 }
 
 /*
- * -----------------------------------------
+ * =========================================
  * TAB STYLE
- * -----------------------------------------
+ * =========================================
  */
 
 const tabStyle = (
@@ -837,4 +1015,6 @@ const tabStyle = (
 
   whiteSpace:
     'nowrap',
+
+  flexShrink: 0,
 });

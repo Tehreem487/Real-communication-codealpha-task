@@ -5,8 +5,6 @@ import {
   Route,
 } from 'react-router-dom';
 
-import { AuthProvider } from './context/AuthContext';
-
 import Dashboard from './pages/Dashboard';
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -17,50 +15,52 @@ import NotFound from './pages/NotFound';
 
 export default function App() {
   return (
-    <AuthProvider>
-      <Router>
-        <Routes>
-          <Route
-            path="/"
-            element={<Landing />}
-          />
+    <Router>
+      <Routes>
 
-          <Route
-            path="/login"
-            element={<Login />}
-          />
+        <Route
+          path="/"
+          element={<Landing />}
+        />
 
-          <Route
-            path="/register"
-            element={<Register />}
-          />
+        <Route
+          path="/login"
+          element={<Login />}
+        />
 
-          <Route
-            path="/dashboard"
-            element={<Dashboard />}
-          />
+        <Route
+          path="/register"
+          element={<Register />}
+        />
 
-          <Route
-            path="/profile"
-            element={<Profile />}
-          />
+        <Route
+          path="/dashboard"
+          element={<Dashboard />}
+        />
 
-          <Route
-            path="/room/:roomId"
-            element={<MeetingRoom />}
-          />
+        <Route
+          path="/profile"
+          element={<Profile />}
+        />
 
-          <Route
-            path="/meeting/:roomId"
-            element={<MeetingRoom />}
-          />
+        {/* Meeting page */}
+        <Route
+          path="/meeting"
+          element={<MeetingRoom />}
+        />
 
-          <Route
-            path="*"
-            element={<NotFound />}
-          />
-        </Routes>
-      </Router>
-    </AuthProvider>
+        {/* Shared meeting room */}
+        <Route
+          path="/room/:roomId"
+          element={<MeetingRoom />}
+        />
+
+        <Route
+          path="*"
+          element={<NotFound />}
+        />
+
+      </Routes>
+    </Router>
   );
 }
