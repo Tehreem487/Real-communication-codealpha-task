@@ -1,58 +1,52 @@
-export const formatTime = (dateString) => {
-  const date = new Date(dateString);
-
-  return date.toLocaleTimeString([], {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-};
-
-export const generateRoomCode = (
-  length = 6
-) => {
-  const chars =
-    'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-
-  let result = '';
-
-  for (let i = 0; i < length; i++) {
-    result += chars.charAt(
-      Math.floor(
-        Math.random() * chars.length
-      )
-    );
+export const copyMeetingLink = async (roomId) => {
+  if (!roomId) {
+    console.error('Room ID is missing');
+    return false;
   }
 
-  return result;
-};
+  const frontendUrl =
+    import.meta.env.VITE_FRONTEND_URL ||
+    'https://real-communication-codealpha-task.vercel.app';
 
-export const truncateText = (
-  text,
-  maxLength = 20
-) => {
-  if (!text) return '';
+  const meetingUrl =
+    `${frontendUrl.replace(/\/$/, '')}/room/${roomId}`;
 
-  return text.length > maxLength
-    ? `${text.substring(0, maxLength)}...`
-    : text;
-};
+  console.log('📋 Meeting Link:', meetingUrl);
 
-export const copyMeetingLink = async (
-  roomId
-) => {
   try {
-    const link =
-      `${window.location.origin}/room/${roomId}`;
-
-    await navigator.clipboard.writeText(link);
-
+    await navigator.clipboard.writeText(meetingUrl);
     return true;
   } catch (error) {
-    console.error(
-      'Unable to copy meeting link:',
-      error
-    );
+    console.error('Clipboard API failed:', error);
 
-    return false;
+    try {
+      const textArea =
+        document.createElement('textarea');
+
+      textArea.value = meetingUrl;
+
+      textArea.style.position = 'fixed';
+      textArea.style.left = '-9999px';
+      textArea.style.top = '0';
+
+      document.body.appendChild(textArea);
+
+      textArea.focus();
+      textArea.select();
+
+      const copied =
+        document.execCommand('copy');
+
+      document.body.removeChild(textArea);
+
+      return copied;
+    } catch (fallbackError) {
+      console.error(
+        'Clipboard fallback failed:',
+        fallbackError
+      );
+
+      return false;
+    }
   }
 };
