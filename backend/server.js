@@ -10,11 +10,23 @@ connectDB();
 
 const server = http.createServer(app);
 
+/*
+ * =========================================
+ * ALLOWED FRONTEND URLS
+ * =========================================
+ */
+
 const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:3000',
   'https://real-communication-codealpha-task.vercel.app',
 ];
+
+/*
+ * =========================================
+ * SOCKET.IO
+ * =========================================
+ */
 
 const io = new Server(server, {
   cors: {
@@ -36,39 +48,80 @@ const io = new Server(server, {
   },
 });
 
+/*
+ * =========================================
+ * SOCKET CONNECTION
+ * =========================================
+ */
+
 io.on('connection', (socket) => {
   console.log(
     `✅ User connected: ${socket.id}`
   );
 
   /*
+   * =======================================
    * JOIN ROOM
+   * =======================================
    */
 
   socket.on(
     'join-room',
     (roomId) => {
-      if (!roomId) return;
+      if (!roomId) {
+        console.log(
+          '⚠️ join-room called without roomId'
+        );
 
+        return;
+      }
+
+      /*
+       * Save room ID on socket.
+       * This is important because later WebRTC
+       * events don't necessarily send roomId.
+       */
       socket.data.roomId = roomId;
 
+      /*
+       * Join Socket.IO room.
+       */
       socket.join(roomId);
 
+      /*
+       * Get room AFTER joining.
+       */
       const room =
         io.sockets.adapter.rooms.get(
           roomId
         );
 
+      /*
+       * Existing users are everyone except
+       * the newly joined socket.
+       */
       const existingUsers = room
         ? Array.from(room).filter(
-            (id) =>
-              id !== socket.id
+            (id) => id !== socket.id
           )
         : [];
 
+      console.log(
+        `🚪 ${socket.id} joined room: ${roomId}`
+      );
+
+      console.log(
+        '👥 Existing users:',
+        existingUsers
+      );
+
       /*
-       * Tell new user about
-       * existing users
+       * -----------------------------------
+       * Tell NEW user about existing users
+       * -----------------------------------
+       *
+       * The frontend will create WebRTC offers
+       * to these users.
        */
 
       socket.emit(
@@ -77,8 +130,10 @@ io.on('connection', (socket) => {
       );
 
       /*
-       * Tell existing users
-       * that a new user joined
+       * -----------------------------------
+       * Tell EXISTING users that a new user
+       * joined.
+       * -----------------------------------
        */
 
       socket
@@ -89,7 +144,9 @@ io.on('connection', (socket) => {
         );
 
       /*
-       * Participants
+       * -----------------------------------
+       * PARTICIPANT LIST
+       * -----------------------------------
        */
 
       const users = room
@@ -101,41 +158,95 @@ io.on('connection', (socket) => {
         users.map(
           (socketId) => ({
             socketId,
+
             name:
-              socketId ===
-              socket.id
+              socketId === socket.id
                 ? 'You'
                 : 'Participant',
           })
         )
       );
-
-      console.log(
-        `🚪 ${socket.id} joined room: ${roomId}`
-      );
     }
   );
 
   /*
+   * =========================================
    * WEBRTC OFFER
+   * =========================================
    */
 
   socket.on(
     'webrtc-offer',
-    ({
-      to,
-      offer,
-      roomId,
-    }) => {
+    (data) => {
+      const {
+        to,
+        target,
+        offer,
+      } = data || {};
+
+      /*
+       * Support both "to" and "target".
+       */
+      const targetSocket =
+        to || target;
+
       if (
-        !to ||
-        !offer ||
-        !roomId
+        !targetSocket ||
+        !offer
       ) {
+        console.log(
+          '⚠️ Invalid WebRTC offer from:',
+          socket.id
+        );
+
         return;
       }
 
-      io.to(to).emit(
+      /*
+       * Get room from socket.
+       *
+       * We DO NOT require roomId from frontend
+       * anymore because join-room already stored
+       * it in socket.data.roomId.
+       */
+      const roomId =
+        socket.data.roomId;
+
+      if (!roomId) {
+        console.log(
+          '⚠️ Offer rejected - socket is not in a room:',
+          socket.id
+        );
+
+        return;
+      }
+
+      /*
+       * Make sure target user is actually
+       * inside the same room.
+       */
+      const room =
+        io.sockets.adapter.rooms.get(
+          roomId
+        );
+
+      if (
+        !room ||
+        !room.has(targetSocket)
+      ) {
+        console.log(
+          '⚠️ Offer target is not in same room:',
+          targetSocket
+        );
+
+        return;
+      }
+
+      console.log(
+        `📤 OFFER: ${socket.id} → ${targetSocket}`
+      );
+
+      io.to(targetSocket).emit(
         'webrtc-offer',
         {
           from: socket.id,
@@ -146,25 +257,72 @@ io.on('connection', (socket) => {
   );
 
   /*
+   * =========================================
    * WEBRTC ANSWER
+   * =========================================
    */
 
   socket.on(
     'webrtc-answer',
-    ({
-      to,
-      answer,
-      roomId,
-    }) => {
+    (data) => {
+      const {
+        to,
+        target,
+        answer,
+      } = data || {};
+
+      const targetSocket =
+        to || target;
+
       if (
-        !to ||
-        !answer ||
-        !roomId
+        !targetSocket ||
+        !answer
       ) {
+        console.log(
+          '⚠️ Invalid WebRTC answer from:',
+          socket.id
+        );
+
         return;
       }
 
-      io.to(to).emit(
+      const roomId =
+        socket.data.roomId;
+
+      if (!roomId) {
+        console.log(
+          '⚠️ Answer rejected - socket is not in a room:',
+          socket.id
+        );
+
+        return;
+      }
+
+      /*
+       * Make sure target belongs to same room.
+       */
+      const room =
+        io.sockets.adapter.rooms.get(
+          roomId
+        );
+
+      if (
+        !room ||
+        !room.has(targetSocket)
+      ) {
+        console.log(
+          '⚠️ Answer target is not in same room:',
+          targetSocket
+        );
+
+        return;
+      }
+
+      console.log(
+        `📤 ANSWER: ${socket.id} → ${targetSocket}`
+      );
+
+      io.to(targetSocket).emit(
         'webrtc-answer',
         {
           from: socket.id,
@@ -175,25 +333,67 @@ io.on('connection', (socket) => {
   );
 
   /*
+   * =========================================
    * ICE CANDIDATE
+   * =========================================
    */
 
   socket.on(
     'webrtc-ice-candidate',
-    ({
-      to,
-      candidate,
-      roomId,
-    }) => {
+    (data) => {
+      const {
+        to,
+        target,
+        candidate,
+      } = data || {};
+
+      const targetSocket =
+        to || target;
+
       if (
-        !to ||
-        !candidate ||
-        !roomId
+        !targetSocket ||
+        !candidate
+      ) {
+        console.log(
+          '⚠️ Invalid ICE candidate from:',
+          socket.id
+        );
+
+        return;
+      }
+
+      const roomId =
+        socket.data.roomId;
+
+      if (!roomId) {
+        console.log(
+          '⚠️ ICE rejected - socket is not in a room:',
+          socket.id
+        );
+
+        return;
+      }
+
+      /*
+       * Make sure target belongs to same room.
+       */
+      const room =
+        io.sockets.adapter.rooms.get(
+          roomId
+        );
+
+      if (
+        !room ||
+        !room.has(targetSocket)
       ) {
         return;
       }
 
-      io.to(to).emit(
+      /*
+       * Send ICE candidate directly to target.
+       */
+
+      io.to(targetSocket).emit(
         'webrtc-ice-candidate',
         {
           from: socket.id,
@@ -204,7 +404,9 @@ io.on('connection', (socket) => {
   );
 
   /*
+   * =========================================
    * CHAT
+   * =========================================
    */
 
   socket.on(
@@ -218,6 +420,7 @@ io.on('connection', (socket) => {
         'receive-message',
         {
           ...data,
+
           senderId:
             data.senderId ||
             socket.id,
@@ -227,7 +430,9 @@ io.on('connection', (socket) => {
   );
 
   /*
+   * =========================================
    * WHITEBOARD
+   * =========================================
    */
 
   socket.on(
@@ -247,7 +452,9 @@ io.on('connection', (socket) => {
   );
 
   /*
+   * =========================================
    * LEAVE ROOM
+   * =========================================
    */
 
   socket.on(
@@ -261,10 +468,20 @@ io.on('connection', (socket) => {
         return;
       }
 
+      console.log(
+        `🚪 ${socket.id} leaving room: ${actualRoomId}`
+      );
+
+      /*
+       * Leave Socket.IO room.
+       */
       socket.leave(
         actualRoomId
       );
 
+      /*
+       * Tell remaining users.
+       */
       socket
         .to(actualRoomId)
         .emit(
@@ -272,6 +489,9 @@ io.on('connection', (socket) => {
           socket.id
         );
 
+      /*
+       * Get remaining users.
+       */
       const room =
         io.sockets.adapter.rooms.get(
           actualRoomId
@@ -281,37 +501,49 @@ io.on('connection', (socket) => {
         ? Array.from(room)
         : [];
 
+      /*
+       * Update participant list.
+       */
       io.to(actualRoomId).emit(
         'room-participants',
         users.map(
           (socketId) => ({
             socketId,
-            name:
-              'Participant',
+            name: 'Participant',
           })
         )
       );
 
-      socket.data.roomId =
-        null;
-
-      console.log(
-        `🚪 ${socket.id} left room: ${actualRoomId}`
-      );
+      socket.data.roomId = null;
     }
   );
 
   /*
+   * =========================================
    * DISCONNECT
+   * =========================================
    */
 
   socket.on(
     'disconnect',
-    () => {
+    (reason) => {
       const roomId =
         socket.data.roomId;
 
+      /*
+       * IMPORTANT:
+       *
+       * Socket.IO automatically removes a
+       * disconnected socket from its rooms.
+       *
+       * We still notify the remaining users.
+       */
+
       if (roomId) {
+        console.log(
+          `🔌 ${socket.id} disconnected from room: ${roomId}`
+        );
+
         socket
           .to(roomId)
           .emit(
@@ -319,6 +551,9 @@ io.on('connection', (socket) => {
             socket.id
           );
 
+        /*
+         * Get remaining users.
+         */
         const room =
           io.sockets.adapter.rooms.get(
             roomId
@@ -333,19 +568,25 @@ io.on('connection', (socket) => {
           users.map(
             (socketId) => ({
               socketId,
-              name:
-                'Participant',
+              name: 'Participant',
             })
           )
         );
       }
 
       console.log(
-        `🔌 User disconnected: ${socket.id}`
+        `🔌 User disconnected: ${socket.id}`,
+        reason
       );
     }
   );
 });
+
+/*
+ * =========================================
+ * SERVER
+ * =========================================
+ */
 
 const PORT =
   process.env.PORT || 5000;

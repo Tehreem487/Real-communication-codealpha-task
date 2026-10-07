@@ -11,7 +11,7 @@ import {
 } from 'react-router-dom';
 
 import { useSocket } from '../hooks/useSocket';
-import { useWebRTC } from '../hooks/useWebRTC';
+import useWebRTC from "../hooks/useWebRTC";
 
 import VideoGrid from '../components/meeting/VideoGrid';
 import MeetingControls from '../components/meeting/MeetingControls';
@@ -20,9 +20,7 @@ import Whiteboard from '../components/whiteboard/Whiteboard';
 import { ScreenShare } from '../components/screenShare/ScreenShare';
 
 export default function MeetingRoom() {
-  const {
-    roomId: urlRoomId,
-  } = useParams();
+  const { roomId: urlRoomId } = useParams();
 
   const location = useLocation();
   const navigate = useNavigate();
@@ -30,19 +28,9 @@ export default function MeetingRoom() {
   const socket = useSocket();
 
   /*
-   * -----------------------------------------
+   * =========================================
    * ROOM ID
-   * -----------------------------------------
-   *
-   * Main source is:
-   *
-   * /room/:roomId
-   *
-   * Example:
-   * /room/GMBBJJ
-   *
-   * This means when someone opens the same
-   * URL, they enter the same room.
+   * =========================================
    */
 
   const roomId =
@@ -51,9 +39,9 @@ export default function MeetingRoom() {
     `room-${Date.now()}`;
 
   /*
-   * -----------------------------------------
+   * =========================================
    * SAVED CAMERA / MIC STATE
-   * -----------------------------------------
+   * =========================================
    */
 
   const getSavedBoolean = (
@@ -61,8 +49,7 @@ export default function MeetingRoom() {
     fallback = false
   ) => {
     try {
-      const value =
-        localStorage.getItem(key);
+      const value = localStorage.getItem(key);
 
       if (value === null) {
         return fallback;
@@ -74,219 +61,186 @@ export default function MeetingRoom() {
     }
   };
 
-  const [isMuted, setIsMuted] =
-    useState(() =>
-      getSavedBoolean(
-        `meeting_muted_${roomId}`,
-        false
-      )
-    );
+  const [isMuted, setIsMuted] = useState(() =>
+    getSavedBoolean(
+      `meeting_muted_${roomId}`,
+      false
+    )
+  );
 
-  const [isVideoOff, setIsVideoOff] =
-    useState(() =>
-      getSavedBoolean(
-        `meeting_camera_off_${roomId}`,
-        false
-      )
-    );
+  const [isVideoOff, setIsVideoOff] = useState(() =>
+    getSavedBoolean(
+      `meeting_camera_off_${roomId}`,
+      false
+    )
+  );
 
   /*
-   * -----------------------------------------
+   * =========================================
    * UI STATE
-   * -----------------------------------------
+   * =========================================
    */
 
-  const [activeTab, setActiveTab] =
-    useState(
-      location.state?.defaultTab ||
-        'video'
-    );
+  const [activeTab, setActiveTab] = useState(
+    location.state?.defaultTab || 'video'
+  );
 
-  const [stream, setStream] =
-    useState(null);
+  const [stream, setStream] = useState(null);
 
-  const [copied, setCopied] =
+  const [copied, setCopied] = useState(false);
+
+  const [showChatMobile, setShowChatMobile] =
     useState(false);
 
-  const [
-    showChatMobile,
-    setShowChatMobile,
-  ] = useState(false);
-
-  const [
-    participants,
-    setParticipants,
-  ] = useState([]);
+  const [participants, setParticipants] =
+    useState([]);
 
   const myVideoRef = useRef(null);
 
   /*
-   * Prevent duplicate leave events
-   */
-
-  const hasLeftRef = useRef(false);
-
-  /*
-   * -----------------------------------------
+   * =========================================
    * WEBRTC
-   * -----------------------------------------
    *
    * IMPORTANT:
-   * Same socket instance is passed to
-   * useWebRTC.
+   * localStream is passed only after it exists.
+   * This allows useWebRTC to attach camera/mic
+   * tracks BEFORE joining/creating offers.
+   * =========================================
    */
 
   const {
     peers,
-  } = useWebRTC(
+  } = useWebRTC({
+    socket,
     roomId,
-    stream,
-    socket
-  );
+    localStream: stream,
+  });
 
   /*
-   * -----------------------------------------
-   * START MEDIA
-   * -----------------------------------------
+   * =========================================
+   * START CAMERA + MICROPHONE
+   * =========================================
    */
 
   useEffect(() => {
     let mounted = true;
 
-    const startMedia =
-      async () => {
-        try {
-          /*
-           * If camera was OFF before refresh,
-           * don't request camera.
-           */
+    const startMedia = async () => {
+      try {
+        /*
+         * Request camera only if camera is enabled.
+         */
+        const constraints = {
+          audio: true,
+          video: !isVideoOff,
+        };
 
-          const constraints = {
-            audio: true,
-            video: !isVideoOff,
-          };
+        console.log(
+          'Requesting local media:',
+          constraints
+        );
 
-          const userStream =
-            await navigator.mediaDevices.getUserMedia(
-              constraints
-            );
-
-          if (!mounted) {
-            userStream
-              .getTracks()
-              .forEach((track) =>
-                track.stop()
-              );
-
-            return;
-          }
-
-          /*
-           * Apply saved microphone state
-           */
-
-          userStream
-            .getAudioTracks()
-            .forEach((track) => {
-              track.enabled =
-                !isMuted;
-            });
-
-          /*
-           * Apply saved camera state
-           */
-
-          userStream
-            .getVideoTracks()
-            .forEach((track) => {
-              track.enabled =
-                !isVideoOff;
-            });
-
-          setStream(userStream);
-
-          /*
-           * Attach local video
-           */
-
-          if (myVideoRef.current) {
-            myVideoRef.current.srcObject =
-              userStream;
-          }
-        } catch (error) {
-          console.error(
-            'Media permission error:',
-            error
+        const userStream =
+          await navigator.mediaDevices.getUserMedia(
+            constraints
           );
 
-          /*
-           * If camera permission fails,
-           * continue with microphone only.
-           */
+        /*
+         * Component was unmounted while permission
+         * dialog was open.
+         */
+        if (!mounted) {
+          userStream
+            .getTracks()
+            .forEach((track) => track.stop());
 
-          if (!isVideoOff) {
-            try {
-              const audioOnlyStream =
-                await navigator.mediaDevices.getUserMedia(
-                  {
-                    audio: true,
-                    video: false,
-                  }
-                );
-
-              if (!mounted) {
-                audioOnlyStream
-                  .getTracks()
-                  .forEach((track) =>
-                    track.stop()
-                  );
-
-                return;
-              }
-
-              audioOnlyStream
-                .getAudioTracks()
-                .forEach(
-                  (track) => {
-                    track.enabled =
-                      !isMuted;
-                  }
-                );
-
-              /*
-               * Camera is now considered OFF
-               */
-
-              setIsVideoOff(true);
-
-              localStorage.setItem(
-                `meeting_camera_off_${roomId}`,
-                'true'
-              );
-
-              setStream(
-                audioOnlyStream
-              );
-
-              if (
-                myVideoRef.current
-              ) {
-                myVideoRef.current.srcObject =
-                  audioOnlyStream;
-              }
-            } catch (
-              audioError
-            ) {
-              console.error(
-                'Microphone error:',
-                audioError
-              );
-
-              setStream(null);
-            }
-          }
+          return;
         }
-      };
+
+        /*
+         * Apply saved microphone state.
+         */
+        userStream
+          .getAudioTracks()
+          .forEach((track) => {
+            track.enabled = !isMuted;
+          });
+
+        /*
+         * Apply saved camera state.
+         */
+        userStream
+          .getVideoTracks()
+          .forEach((track) => {
+            track.enabled = !isVideoOff;
+          });
+
+        console.log(
+          'Local stream ready:',
+          userStream
+        );
+
+        setStream(userStream);
+      } catch (error) {
+        console.error(
+          'Media permission error:',
+          error
+        );
+
+        /*
+         * If camera failed, try microphone only.
+         */
+        if (!isVideoOff) {
+          try {
+            const audioOnlyStream =
+              await navigator.mediaDevices.getUserMedia(
+                {
+                  audio: true,
+                  video: false,
+                }
+              );
+
+            if (!mounted) {
+              audioOnlyStream
+                .getTracks()
+                .forEach((track) =>
+                  track.stop()
+                );
+
+              return;
+            }
+
+            audioOnlyStream
+              .getAudioTracks()
+              .forEach((track) => {
+                track.enabled = !isMuted;
+              });
+
+            setIsVideoOff(true);
+
+            localStorage.setItem(
+              `meeting_camera_off_${roomId}`,
+              'true'
+            );
+
+            setStream(audioOnlyStream);
+          } catch (audioError) {
+            console.error(
+              'Microphone permission error:',
+              audioError
+            );
+
+            setStream(null);
+          }
+        } else {
+          /*
+           * Camera was intentionally off but microphone
+           * also failed.
+           */
+          setStream(null);
+        }
+      }
+    };
 
     startMedia();
 
@@ -294,42 +248,60 @@ export default function MeetingRoom() {
       mounted = false;
     };
 
-    /*
-     * Media starts once when room opens.
-     */
-
+    // We intentionally initialize media once per room.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomId]);
 
   /*
-   * -----------------------------------------
+   * =========================================
    * ATTACH LOCAL VIDEO
-   * -----------------------------------------
+   * =========================================
    */
 
   useEffect(() => {
-    if (
-      stream &&
-      myVideoRef.current
-    ) {
-      myVideoRef.current.srcObject =
-        stream;
+    if (!myVideoRef.current) {
+      return;
+    }
+
+    if (stream) {
+      myVideoRef.current.srcObject = stream;
 
       /*
-       * Make sure local video starts
-       * automatically.
+       * Some browsers need play() after assigning
+       * srcObject.
        */
+      const playLocalVideo = async () => {
+        try {
+          await myVideoRef.current?.play();
+        } catch (error) {
+          console.warn(
+            'Local video autoplay blocked:',
+            error
+          );
+        }
+      };
 
-      myVideoRef.current
-        .play()
-        .catch(() => {});
+      playLocalVideo();
+    } else {
+      myVideoRef.current.srcObject = null;
     }
+
+    return () => {
+      if (myVideoRef.current) {
+        myVideoRef.current.srcObject = null;
+      }
+    };
   }, [stream]);
 
   /*
-   * -----------------------------------------
+   * =========================================
    * PARTICIPANTS
-   * -----------------------------------------
+   * =========================================
+   *
+   * This is only the participant list.
+   *
+   * Actual video streams come from useWebRTC().
+   * =========================================
    */
 
   useEffect(() => {
@@ -337,17 +309,18 @@ export default function MeetingRoom() {
       return;
     }
 
-    const handleParticipants =
-      (users) => {
-        const safeUsers =
-          Array.isArray(users)
-            ? users
-            : [];
+    const handleParticipants = (users) => {
+      console.log(
+        'Room participants:',
+        users
+      );
 
-        setParticipants(
-          safeUsers
-        );
-      };
+      setParticipants(
+        Array.isArray(users)
+          ? users
+          : []
+      );
+    };
 
     socket.on(
       'room-participants',
@@ -363,9 +336,9 @@ export default function MeetingRoom() {
   }, [socket, roomId]);
 
   /*
-   * -----------------------------------------
+   * =========================================
    * SAVE CAMERA STATE
-   * -----------------------------------------
+   * =========================================
    */
 
   useEffect(() => {
@@ -376,19 +349,16 @@ export default function MeetingRoom() {
       );
     } catch (error) {
       console.error(
-        'Camera state save error:',
+        'Could not save camera state:',
         error
       );
     }
-  }, [
-    isVideoOff,
-    roomId,
-  ]);
+  }, [isVideoOff, roomId]);
 
   /*
-   * -----------------------------------------
-   * SAVE MIC STATE
-   * -----------------------------------------
+   * =========================================
+   * SAVE MICROPHONE STATE
+   * =========================================
    */
 
   useEffect(() => {
@@ -399,40 +369,74 @@ export default function MeetingRoom() {
       );
     } catch (error) {
       console.error(
-        'Mic state save error:',
+        'Could not save microphone state:',
         error
       );
     }
-  }, [
-    isMuted,
-    roomId,
-  ]);
+  }, [isMuted, roomId]);
 
   /*
-   * -----------------------------------------
-   * COPY ROOM LINK
-   * -----------------------------------------
-   *
-   * IMPORTANT:
-   *
-   * Local:
-   * http://localhost:5173/room/GMBBJJ
-   *
-   * Production:
-   * https://real-communication-codealpha-task.vercel.app/room/GMBBJJ
-   *
-   * window.location.origin automatically
-   * picks the correct domain.
+   * =========================================
+   * COPY PUBLIC MEETING LINK
+   * =========================================
    */
 
-  const handleCopyLink =
-    async () => {
-      try {
-        const meetingUrl =
-          `${window.location.origin}/room/${roomId}`;
+  const handleCopyLink = async () => {
+    /*
+     * Always generate the deployed public URL.
+     */
+    const frontendUrl =
+      'https://real-communication-codealpha-task.vercel.app';
 
-        await navigator.clipboard.writeText(
-          meetingUrl
+    const meetingUrl =
+      `${frontendUrl}/room/${roomId}`;
+
+    console.log(
+      'PUBLIC MEETING LINK:',
+      meetingUrl
+    );
+
+    try {
+      await navigator.clipboard.writeText(
+        meetingUrl
+      );
+
+      setCopied(true);
+
+      setTimeout(() => {
+        setCopied(false);
+      }, 2000);
+    } catch (error) {
+      console.error(
+        'Clipboard API error:',
+        error
+      );
+
+      /*
+       * Fallback for older browsers.
+       */
+      try {
+        const textArea =
+          document.createElement('textarea');
+
+        textArea.value = meetingUrl;
+
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-9999px';
+        textArea.style.top = '0';
+        textArea.style.opacity = '0';
+
+        document.body.appendChild(
+          textArea
+        );
+
+        textArea.focus();
+        textArea.select();
+
+        document.execCommand('copy');
+
+        document.body.removeChild(
+          textArea
         );
 
         setCopied(true);
@@ -440,135 +444,62 @@ export default function MeetingRoom() {
         setTimeout(() => {
           setCopied(false);
         }, 2000);
-      } catch (error) {
+      } catch (fallbackError) {
         console.error(
-          'Copy meeting link error:',
-          error
-        );
-
-        /*
-         * Fallback for browsers where
-         * clipboard API is unavailable.
-         */
-
-        try {
-          const textArea =
-            document.createElement(
-              'textarea'
-            );
-
-          textArea.value =
-            `${window.location.origin}/room/${roomId}`;
-
-          textArea.style.position =
-            'fixed';
-
-          textArea.style.opacity =
-            '0';
-
-          document.body.appendChild(
-            textArea
-          );
-
-          textArea.select();
-
-          document.execCommand(
-            'copy'
-          );
-
-          document.body.removeChild(
-            textArea
-          );
-
-          setCopied(true);
-
-          setTimeout(() => {
-            setCopied(false);
-          }, 2000);
-        } catch (
+          'Clipboard fallback error:',
           fallbackError
-        ) {
-          console.error(
-            'Clipboard fallback error:',
-            fallbackError
-          );
-        }
+        );
       }
-    };
+    }
+  };
 
   /*
-   * -----------------------------------------
+   * =========================================
    * LEAVE MEETING
-   * -----------------------------------------
+   * =========================================
    */
 
   const handleLeave = () => {
     /*
-     * Prevent duplicate leave
+     * Stop local camera and microphone.
      */
-
-    if (hasLeftRef.current) {
-      return;
-    }
-
-    hasLeftRef.current = true;
-
-    /*
-     * Notify server
-     */
-
-    if (socket) {
-      try {
-        socket.emit(
-          'leave-room',
-          roomId
-        );
-      } catch (error) {
-        console.error(
-          'Leave room error:',
-          error
-        );
-      }
-    }
-
-    /*
-     * Stop local media
-     */
-
     if (stream) {
       stream
         .getTracks()
         .forEach((track) => {
-          try {
-            track.stop();
-          } catch {}
+          track.stop();
         });
     }
 
     /*
-     * Clear local video
+     * Remove local video.
      */
-
     if (myVideoRef.current) {
-      myVideoRef.current.srcObject =
-        null;
+      myVideoRef.current.srcObject = null;
+    }
+
+    /*
+     * Tell backend that this user left.
+     */
+    if (socket) {
+      socket.emit(
+        'leave-room',
+        roomId
+      );
     }
 
     setStream(null);
 
     /*
-     * Go back to dashboard
+     * Return to dashboard.
      */
-
-    navigate('/dashboard', {
-      replace: true,
-    });
+    navigate('/dashboard');
   };
 
   /*
-   * -----------------------------------------
+   * =========================================
    * ROOM NAME
-   * -----------------------------------------
+   * =========================================
    */
 
   const roomName =
@@ -576,26 +507,10 @@ export default function MeetingRoom() {
     `Meeting ${roomId}`;
 
   /*
-   * -----------------------------------------
-   * SAFE PEERS
-   * -----------------------------------------
+   * =========================================
+   * RENDER
+   * =========================================
    */
-
-  const safePeers =
-    Array.isArray(peers)
-      ? peers
-      : [];
-
-  /*
-   * -----------------------------------------
-   * SAFE PARTICIPANTS
-   * -----------------------------------------
-   */
-
-  const safeParticipants =
-    Array.isArray(participants)
-      ? participants
-      : [];
 
   return (
     <div
@@ -616,18 +531,16 @@ export default function MeetingRoom() {
 
       {/* =====================================
           HEADER
-      ====================================== */}
+          ===================================== */}
 
       <div
         style={{
           display: 'flex',
-          justifyContent:
-            'space-between',
+          justifyContent: 'space-between',
           alignItems: 'center',
           padding: '8px 12px',
           background: '#121212',
-          borderBottom:
-            '1px solid #222',
+          borderBottom: '1px solid #222',
           flexShrink: 0,
           gap: '10px',
         }}
@@ -643,6 +556,7 @@ export default function MeetingRoom() {
             minWidth: 0,
           }}
         >
+
           <span
             style={{
               width: '8px',
@@ -651,8 +565,6 @@ export default function MeetingRoom() {
               borderRadius: '50%',
               display: 'inline-block',
               flexShrink: 0,
-              boxShadow:
-                '0 0 8px rgba(16,185,129,0.5)',
             }}
           />
 
@@ -662,28 +574,22 @@ export default function MeetingRoom() {
               fontWeight: '700',
               fontSize: '13px',
               overflow: 'hidden',
-              textOverflow:
-                'ellipsis',
-              whiteSpace:
-                'nowrap',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
             }}
           >
             {roomName}
           </div>
 
           <button
-            onClick={
-              handleCopyLink
-            }
+            onClick={handleCopyLink}
             style={{
               background: '#1f1f1f',
               color: copied
                 ? '#10b981'
                 : '#ff6600',
-              border:
-                '1px solid #333',
-              padding:
-                '5px 10px',
+              border: '1px solid #333',
+              padding: '5px 10px',
               borderRadius: '5px',
               fontSize: '11px',
               cursor: 'pointer',
@@ -704,16 +610,15 @@ export default function MeetingRoom() {
             display: 'flex',
             gap: '5px',
             overflowX: 'auto',
-            scrollbarWidth: 'none',
           }}
         >
+
           <button
             onClick={() =>
               setActiveTab('video')
             }
             style={tabStyle(
-              activeTab ===
-                'video'
+              activeTab === 'video'
             )}
           >
             Video
@@ -721,13 +626,10 @@ export default function MeetingRoom() {
 
           <button
             onClick={() =>
-              setActiveTab(
-                'whiteboard'
-              )
+              setActiveTab('whiteboard')
             }
             style={tabStyle(
-              activeTab ===
-                'whiteboard'
+              activeTab === 'whiteboard'
             )}
           >
             Whiteboard
@@ -735,13 +637,10 @@ export default function MeetingRoom() {
 
           <button
             onClick={() =>
-              setActiveTab(
-                'screenshare'
-              )
+              setActiveTab('screenshare')
             }
             style={tabStyle(
-              activeTab ===
-                'screenshare'
+              activeTab === 'screenshare'
             )}
           >
             Share
@@ -750,8 +649,7 @@ export default function MeetingRoom() {
           <button
             onClick={() =>
               setShowChatMobile(
-                (previous) =>
-                  !previous
+                (previous) => !previous
               )
             }
             style={tabStyle(
@@ -760,12 +658,13 @@ export default function MeetingRoom() {
           >
             Chat
           </button>
+
         </div>
       </div>
 
       {/* =====================================
           BODY
-      ====================================== */}
+          ===================================== */}
 
       <div
         style={{
@@ -782,126 +681,84 @@ export default function MeetingRoom() {
           style={{
             flex: 1,
             display: 'flex',
-            flexDirection:
-              'column',
+            flexDirection: 'column',
             overflow: 'hidden',
-            minWidth: 0,
           }}
         >
+
+          {/* CONTENT */}
 
           <div
             style={{
               flex: 1,
               overflowY: 'auto',
               padding: '8px',
-              boxSizing:
-                'border-box',
-              minHeight: 0,
+              boxSizing: 'border-box',
             }}
           >
 
-            {/* ===============================
-                VIDEO
-            ================================ */}
+            {/* VIDEO */}
 
-            {activeTab ===
-              'video' && (
+            {activeTab === 'video' && (
               <VideoGrid
-                peers={
-                  safePeers
-                }
-                participants={
-                  safeParticipants
-                }
-                isVideoOff={
-                  isVideoOff
-                }
-                isMuted={
-                  isMuted
-                }
-                myVideoRef={
-                  myVideoRef
-                }
-                stream={
-                  stream
-                }
+                peers={peers}
+                participants={participants}
+                isVideoOff={isVideoOff}
+                isMuted={isMuted}
+                myVideoRef={myVideoRef}
+                stream={stream}
               />
             )}
 
-            {/* ===============================
-                WHITEBOARD
-            ================================ */}
+            {/* WHITEBOARD */}
 
-            {activeTab ===
-              'whiteboard' && (
+            {activeTab === 'whiteboard' && (
               <Whiteboard
                 socket={socket}
                 roomId={roomId}
               />
             )}
 
-            {/* ===============================
-                SCREEN SHARE
-            ================================ */}
+            {/* SCREEN SHARE */}
 
-            {activeTab ===
-              'screenshare' && (
-              <ScreenShare
-                stream={stream}
-              />
+            {activeTab === 'screenshare' && (
+              <ScreenShare />
             )}
+
           </div>
 
-          {/* ===============================
-              CONTROLS
-          ================================ */}
+          {/* CONTROLS */}
 
           <MeetingControls
             roomId={roomId}
             isMuted={isMuted}
-            setIsMuted={
-              setIsMuted
-            }
-            isVideoOff={
-              isVideoOff
-            }
-            setIsVideoOff={
-              setIsVideoOff
-            }
+            setIsMuted={setIsMuted}
+            isVideoOff={isVideoOff}
+            setIsVideoOff={setIsVideoOff}
             stream={stream}
-            setStream={
-              setStream
-            }
-            myVideoRef={
-              myVideoRef
-            }
-            onLeave={
-              handleLeave
-            }
+            setStream={setStream}
+            myVideoRef={myVideoRef}
+            onLeave={handleLeave}
           />
+
         </div>
 
-        {/* =================================
+        {/* =====================================
             CHAT
-        ================================== */}
+            ===================================== */}
 
         {showChatMobile && (
           <div
             style={{
-              position:
-                'absolute',
+              position: 'absolute',
               right: 0,
               top: 0,
               bottom: 0,
-              width:
-                'min(320px, 100%)',
-              background:
-                '#121212',
-              borderLeft:
-                '1px solid #222',
+              width: 'min(320px, 100%)',
+              background: '#121212',
+              borderLeft: '1px solid #222',
               display: 'flex',
-              flexDirection:
-                'column',
+              flexDirection: 'column',
               zIndex: 20,
             }}
           >
@@ -910,23 +767,19 @@ export default function MeetingRoom() {
 
             <div
               style={{
-                padding:
-                  '8px 12px',
-                background:
-                  '#1a1a1a',
-                display:
-                  'flex',
+                padding: '8px 12px',
+                background: '#1a1a1a',
+                display: 'flex',
                 justifyContent:
                   'space-between',
-                alignItems:
-                  'center',
+                alignItems: 'center',
               }}
             >
+
               <span
                 style={{
                   color: '#fff',
-                  fontWeight:
-                    '700',
+                  fontWeight: '700',
                 }}
               >
                 Room Chat
@@ -934,36 +787,29 @@ export default function MeetingRoom() {
 
               <button
                 onClick={() =>
-                  setShowChatMobile(
-                    false
-                  )
+                  setShowChatMobile(false)
                 }
                 style={{
-                  background:
-                    '#ff6600',
+                  background: '#ff6600',
                   color: '#000',
                   border: 'none',
-                  padding:
-                    '4px 10px',
-                  borderRadius:
-                    '4px',
-                  cursor:
-                    'pointer',
-                  fontWeight:
-                    '700',
+                  padding: '4px 10px',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontWeight: '700',
                 }}
               >
                 Close
               </button>
+
             </div>
 
-            {/* CHAT */}
+            {/* CHAT BODY */}
 
             <div
               style={{
                 flex: 1,
-                overflowY:
-                  'auto',
+                overflowY: 'auto',
               }}
             >
               <ChatPanel
@@ -971,8 +817,10 @@ export default function MeetingRoom() {
                 roomId={roomId}
               />
             </div>
+
           </div>
         )}
+
       </div>
     </div>
   );
@@ -984,9 +832,7 @@ export default function MeetingRoom() {
  * =========================================
  */
 
-const tabStyle = (
-  active
-) => ({
+const tabStyle = (active) => ({
   background: active
     ? '#ff6600'
     : '#1a1a1a',
@@ -995,26 +841,17 @@ const tabStyle = (
     ? '#000'
     : '#fff',
 
-  border:
-    '1px solid #333',
+  border: '1px solid #333',
 
-  padding:
-    '5px 9px',
+  padding: '5px 9px',
 
-  borderRadius:
-    '5px',
+  borderRadius: '5px',
 
-  fontWeight:
-    '700',
+  fontWeight: '700',
 
-  cursor:
-    'pointer',
+  cursor: 'pointer',
 
-  fontSize:
-    '11px',
+  fontSize: '11px',
 
-  whiteSpace:
-    'nowrap',
-
-  flexShrink: 0,
+  whiteSpace: 'nowrap',
 });
